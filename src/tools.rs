@@ -1,4 +1,6 @@
 use ggez::nalgebra::{Vector2, Point2};
+use ggez::graphics::{self, Mesh, DrawMode, DrawParam};
+use ggez::{Context, GameResult};
 
 use std::f32::consts::PI;
 use crate::{G, planet::Planet};
@@ -44,11 +46,19 @@ pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet) {
 pub fn check_collision(pos1: &Point2<f32>, pos2: &Point2<f32>, r1: f32, r2: f32) -> bool {
     let min_dist = r1 + r2;
     let dist_vec = pos2 - pos1;
+    dist_vec.x.abs() <= min_dist && dist_vec.y.abs() <= min_dist && dist_vec.x.powi(2) + dist_vec.y.powi(2) <= min_dist.powi(2)
+}
 
-    if dist_vec.x.abs() <= min_dist && dist_vec.y.abs() <= min_dist { // If in box
-        println!("In box {} {}, {}", dist_vec.x, dist_vec.y, min_dist);
-        dist_vec.x.powi(2) + dist_vec.y.powi(2) <= min_dist.powi(2)
-    } else {
-        false
-    }
+#[inline]
+pub fn draw_circle(ctx: &mut Context, position: &Point2<f32>, radius: f32, color: graphics::Color) -> GameResult {
+    let circ_mesh = Mesh::new_circle(
+        ctx,
+        DrawMode::fill(),
+        *position,
+        radius,
+        0.1,
+        color
+    )?;
+
+    graphics::draw(ctx, &circ_mesh, DrawParam::new())
 }

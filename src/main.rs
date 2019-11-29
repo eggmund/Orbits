@@ -1,50 +1,61 @@
 mod tools;
 mod planet;
+mod trails;
 
 use ggez::event;
-use ggez::graphics::{self, spritebatch::SpriteBatch, DrawParam};
+use ggez::graphics::{self, DrawParam, DrawMode, Mesh};
 use ggez::nalgebra::{Point2, Vector2};
 use ggez::{Context, GameResult};
 use ggez::timer;
+use ggez::input::mouse::MouseButton;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::cell::RefCell;
+use std::time::Duration;
 
 use planet::Planet;
+use trails::{Emitter, ParticleTrail};
 
 pub const G: f32 = 0.0001;    // Gravitational constant
-pub const PLANET_IMAGE_DIMS: (u32, u32) = (256, 256);
-const PLANET_DRAW_RATIO: (f32, f32) = (PLANET_IMAGE_DIMS.0 as f32/2.0, PLANET_IMAGE_DIMS.1 as f32/2.0);
 
 struct MainState {
     planet_id_count: usize,
     planets: HashMap<usize, RefCell<Planet>>,
-    planet_spritebatch: SpriteBatch,
+    emitters: Vec<Box<dyn Emitter>>,
+    planet_trails: HashMap<usize, ParticleTrail>,
+    mouse_info: MouseInfo,
 }
 
 impl MainState {
-    fn new(ctx: &mut Context) -> GameResult<MainState> {
-        let planet_sprite = graphics::Image::new(ctx, "/circle.png").unwrap();
-        let planet_spritebatch = SpriteBatch::new(planet_sprite);
-
+    fn new(_ctx: &mut Context) -> GameResult<MainState> {
         let mut s = MainState {
             planet_id_count: 0,
             planets: HashMap::new(),
-            planet_spritebatch,
+            emitters: Vec::new(),
+            planet_trails: HashMap::new(),
+            mouse_info: MouseInfo::default(),
         };
+
+        // s.spawn_square_of_planets(
+        //     Point2::new(100.0, 100.0),
+        //     20,
+        //     20,
+        //     50.0,
+        //     5.0,
+        // );
 
         s.add_planet(
             Point2::new(300.0, 400.0),
             None,
             None,
-            50.0
+            30.0
         );
 
         s.add_planet(
             Point2::new(600.0, 400.0),
             None,
             None,
-            50.0
+            30.0
         );
 
         Ok(s)
@@ -52,38 +63,63 @@ impl MainState {
 
     #[inline]
     fn add_planet(&mut self, position: Point2<f32>, velocity: Option<Vector2<f32>>, mass: Option<f32>, radius: f32) {
+        self.add_planet_raw(Planet::new(
+            self.planet_id_count,
+            position,
+            velocity,
+            mass,
+            radius
+        ));
+    }
+
+    #[inline]
+    fn add_planet_raw(&mut self, mut planet: Planet) {
+        planet.id = self.planet_id_count;
+
         self.planets.insert(
             self.planet_id_count,
-            RefCell::new(Planet::new(
-                self.planet_id_count,
-                position,
-                velocity,
-                mass,
-                radius
-            ))
+            RefCell::new(planet)
         );
+
+        self.planet_trails.insert(
+            self.planet_id_count,
+            ParticleTrail::new()
+        );
+
         self.planet_id_count += 1;
     }
 
     #[inline]
-    fn draw_planet(planet: &Planet, spritebatch: &mut SpriteBatch) {
-        spritebatch.add(DrawParam::new()
-            .dest(planet.position)
-            .offset(Point2::new(0.5, 0.5))
-            .scale(Vector2::new(planet.radius/PLANET_DRAW_RATIO.0 as f32, planet.radius/PLANET_DRAW_RATIO.1 as f32))
-        );
+    fn remove_planet(&mut self, id: usize) {
+        self.planets.remove(&id);
+        if let Some(trail) = self.planet_trails.get_mut(&id) {
+            trail.stop_emitting();
+        }
     }
 
     #[inline]
-    fn draw_fps(ctx: &mut Context) -> GameResult {
+    fn draw_debug_info(&self, ctx: &mut Context) -> GameResult {
         let text = graphics::Text::new(
-            format!("{:.3}", timer::fps(ctx))
+            format!("{:.3}\nBodies: {}\nPlanet Trails: {}", timer::fps(ctx), self.planets.len(), self.planet_trails.len())
         );
         graphics::draw(
             ctx,
             &text,
             DrawParam::new().dest([10.0, 10.0])
         )
+    }
+
+    pub fn draw_mouse_drag(ctx: &mut Context, mouse_info: &MouseInfo) -> GameResult {
+        let line = Mesh::new_line(
+            ctx,
+            &[mouse_info.down_pos, mouse_info.current_drag_position],
+            2.0,
+            [0.0, 1.0, 0.0, 1.0].into(),
+        )?;
+        graphics::draw(ctx, &line, DrawParam::default())?;
+        tools::draw_circle(ctx, &mouse_info.down_pos, 2.0, [1.0, 1.0, 1.0, 0.4].into())?;
+
+        Ok(())
     }
 
     fn collide_planets(new_id: usize, pl1: &Planet, pl2: &Planet) -> Planet {  // Returns new planet that is sum of other two.
@@ -100,14 +136,52 @@ impl MainState {
 
         Planet::new(new_id, new_position, Some(m_i/total_mass), Some(total_mass), new_radius)
     }
+
+    fn spawn_square_of_planets(
+        &mut self,
+        top_left: Point2<f32>,
+        w: u16,
+        h: u16,
+        gap: f32,
+        rad: f32,
+    ) {
+        for i in 0..w {
+            for j in 0..h {
+                self.add_planet(
+                    Point2::new(top_left.x + i as f32 * gap, top_left.y + j as f32 * gap),
+                    None,
+                    None,
+                    rad,
+                );
+            }
+        }
+    }
+
+    fn update_planet_trails(&mut self, dt: f32, dt_duration: &Duration) {
+        for (id, trail) in self.planet_trails.iter_mut() {
+            trail.update(
+                dt,
+                dt_duration,
+                if let Some(planet) = self.planets.get(&id) {
+                    Some(planet.borrow().position)
+                } else {
+                    None
+                }
+            );
+        }
+    }
 }
 
 impl event::EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        let dt = timer::duration_to_f64(timer::average_delta(ctx)) as f32;
+        let dt_duration = timer::average_delta(ctx);
+        let dt = timer::duration_to_f64(dt_duration) as f32;
 
         let mut colliding_planets = Vec::with_capacity(self.planets.len());
         let mut new_planets = Vec::with_capacity(self.planets.len()/2);
+
+        // Remove dead particle trails
+        self.planet_trails.retain(|_, trail| !trail.is_dead());
 
         let keys: Vec<&usize> = self.planets.keys().collect();
         let len = self.planets.len();
@@ -124,7 +198,6 @@ impl event::EventHandler for MainState {
                         };
 
                         if colliding {
-                            println!("Is colliding: {}", colliding);
                             colliding_planets.push(*keys[i]);
                             colliding_planets.push(*keys[j]);
 
@@ -138,39 +211,96 @@ impl event::EventHandler for MainState {
             }
         }
 
-        for (_, pl) in self.planets.iter() {
-            pl.borrow_mut().update(dt);
+        // Remove collided planets
+        self.planets.retain(|id, p| !colliding_planets.contains(id));
+        for (id, trail) in self.planet_trails.iter_mut() {
+            if colliding_planets.contains(id) {
+                trail.stop_emitting();
+            }
         }
 
-        // Remove collided planets
-        self.planets.retain(|_, p| !colliding_planets.contains(&p.borrow().id));
+        // Update planets still around
+        for (_, pl) in self.planets.iter() {
+            pl.borrow_mut().update(dt, &dt_duration);
+        }
 
+        // Update trails
+        self.update_planet_trails(dt, &dt_duration);
+
+        // Add new planets
         for new_planet in new_planets {
-            self.planets.insert(new_planet.id, RefCell::new(new_planet));
+            self.add_planet_raw(new_planet);
         }
 
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        self.planet_spritebatch.clear();
         graphics::clear(ctx, [0.0, 0.0, 0.0, 1.0].into());
 
-        for (_, planet) in self.planets.iter() {
-            Self::draw_planet(&planet.borrow(), &mut self.planet_spritebatch);
+        if self.mouse_info.down && self.mouse_info.button_down == MouseButton::Left &&
+            (self.mouse_info.down_pos.x - self.mouse_info.current_drag_position.x).powi(2) +
+            (self.mouse_info.down_pos.y - self.mouse_info.current_drag_position.y).powi(2) >= 4.0
+        {
+            Self::draw_mouse_drag(ctx, &self.mouse_info)?;
+            //self.draw_fake_planet(ctx, self.mouse_info.down_pos, 5.0)?;
         }
 
-        graphics::draw(ctx, &self.planet_spritebatch, DrawParam::default())?;
+        for (_, trail) in self.planet_trails.iter() {
+            trail.draw(ctx)?;
+        }
 
-        Self::draw_fps(ctx)?;
+        for (_, planet) in self.planets.iter() {
+            planet.borrow().draw(ctx)?;
+        }
+
+        self.draw_debug_info(ctx)?;
         graphics::present(ctx)?;
         Ok(())
+    }
+
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+        self.mouse_info.down = true;
+        self.mouse_info.button_down = button;
+        self.mouse_info.down_pos = Point2::new(x, y);
+    }
+
+    fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+        self.mouse_info.down = false;
+
+        if button == MouseButton::Left {
+            self.add_planet(self.mouse_info.down_pos, Some(self.mouse_info.down_pos - Point2::new(x, y)), None, 2.0);
+        }
+    }
+
+    fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, _dx: f32, _dy: f32) {
+        self.mouse_info.current_drag_position = Point2::new(x, y);
+    }
+}
+
+
+struct MouseInfo {
+    down: bool,
+    button_down: MouseButton,
+    down_pos: Point2<f32>,
+    current_drag_position: Point2<f32>,
+}
+
+impl Default for MouseInfo {
+    fn default() -> MouseInfo {
+        MouseInfo {
+            down: false,
+            button_down: MouseButton::Left,
+            down_pos: Point2::new(0.0, 0.0),
+            current_drag_position: Point2::new(1.0, 0.0),
+        }
     }
 }
 
 pub fn main() -> GameResult {
     use std::path;
     use std::env;
+    use ggez::conf::{WindowMode, WindowSetup, NumSamples};
 
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
         let mut path = path::PathBuf::from(manifest_dir);
@@ -180,7 +310,17 @@ pub fn main() -> GameResult {
         path::PathBuf::from("./resources")
     };
 
-    let cb = ggez::ContextBuilder::new("Planets", "ggez").add_resource_path(resource_dir);
+    let cb = ggez::ContextBuilder::new("Planets", "ggez")
+        .add_resource_path(resource_dir)
+        .window_mode(
+            WindowMode::default()
+                .dimensions(1000.0, 800.0)
+        )
+        .window_setup(
+            WindowSetup::default()
+                .samples(NumSamples::Four)
+        );
+
     let (ctx, event_loop) = &mut cb.build()?;
     let state = &mut MainState::new(ctx)?;
     event::run(ctx, event_loop, state)

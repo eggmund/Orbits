@@ -1,6 +1,11 @@
 use ggez::nalgebra::{Vector2, Point2};
+use ggez::graphics;
+use ggez::{Context, GameResult};
+
+use std::time::Duration;
 
 use crate::tools;
+use crate::trails;
 
 pub const PLANET_DENSITY: f32 = 5000.0;
 
@@ -26,12 +31,16 @@ impl Planet {
     }
 
     #[inline]
-    pub fn update(&mut self, dt: f32) {
+    pub fn update(&mut self, dt: f32, dt_duration: &Duration) {
         let acceleration = self.resultant_force/self.mass;  // F = ma, F/m = a
         self.velocity += acceleration * dt;
         self.position += self.velocity * dt;
         
         self.resultant_force = Vector2::new(0.0, 0.0);
+    }
+
+    pub fn draw(&self, ctx: &mut Context) -> GameResult {
+        tools::draw_circle(ctx, &self.position, self.radius, graphics::WHITE)
     }
 
     #[inline]
