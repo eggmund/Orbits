@@ -16,7 +16,7 @@ pub fn inverse_volume_of_sphere(volume: f32) -> f32 {
 }
 
 #[inline]
-pub fn get_angle(vec: &Vector2<f32>) -> f32 {
+pub fn get_angle(vec: Vector2<f32>) -> f32 {
     vec.y.atan2(vec.x)
 }
 
@@ -28,7 +28,7 @@ pub fn get_components(magnitude: f32, angle: f32) -> Vector2<f32> {
 #[inline]
 pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet) {
     let dist_vec = pl2.position - pl1.position;
-    let angle = get_angle(&dist_vec);
+    let angle = get_angle(dist_vec);
 
     let dist_squared = dist_vec.x.powi(2) + dist_vec.y.powi(2);
 
@@ -43,18 +43,18 @@ pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet) {
 
 // Box collision for circles (AABB), and then circle collision
 #[inline]
-pub fn check_collision(pos1: &Point2<f32>, pos2: &Point2<f32>, r1: f32, r2: f32) -> bool {
-    let min_dist = r1 + r2;
-    let dist_vec = pos2 - pos1;
+pub fn check_collision(planet1: &Planet, planet2: &Planet) -> bool {
+    let min_dist = planet1.radius + planet2.radius;
+    let dist_vec = planet2.position - planet1.position;
     dist_vec.x.abs() <= min_dist && dist_vec.y.abs() <= min_dist && dist_vec.x.powi(2) + dist_vec.y.powi(2) <= min_dist.powi(2)
 }
 
 #[inline]
-pub fn draw_circle(ctx: &mut Context, position: &Point2<f32>, radius: f32, color: graphics::Color) -> GameResult {
+pub fn draw_circle(ctx: &mut Context, position: Point2<f32>, radius: f32, color: graphics::Color) -> GameResult {
     let circ_mesh = Mesh::new_circle(
         ctx,
         DrawMode::fill(),
-        *position,
+        position,
         radius,
         0.1,
         color

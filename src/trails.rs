@@ -67,7 +67,12 @@ impl ParticleTrail {
 
     #[inline]
     pub fn is_dead(&self) -> bool {
-        !self.emitt && self.particles.len() == 0
+        !self.emitt && self.particles.is_empty()
+    }
+
+    #[inline]
+    pub fn particle_count(&self) -> usize {
+        self.particles.len()
     }
 
     fn random_velocity(&mut self) -> Vector2<f32> {
@@ -129,7 +134,7 @@ impl Particle {
     fn draw(&self, ctx: &mut Context) -> GameResult {
         tools::draw_circle(
             ctx,
-            &self.position,
+            self.position,
             self.radius,
             [
                 0.1,

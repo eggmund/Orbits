@@ -3,13 +3,13 @@ mod planet;
 mod trails;
 
 use ggez::event;
-use ggez::graphics::{self, DrawParam, DrawMode, Mesh};
+use ggez::graphics::{self, DrawParam, Mesh};
 use ggez::nalgebra::{Point2, Vector2};
 use ggez::{Context, GameResult};
 use ggez::timer;
 use ggez::input::mouse::MouseButton;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::time::Duration;
 
@@ -36,19 +36,19 @@ impl MainState {
             mouse_info: MouseInfo::default(),
         };
 
-        // s.spawn_square_of_planets(
-        //     Point2::new(100.0, 100.0),
-        //     20,
-        //     20,
-        //     50.0,
-        //     5.0,
-        // );
-
         s.add_planet(
             Point2::new(300.0, 400.0),
             None,
             None,
             30.0
+        );
+
+        s.spawn_square_of_planets(
+            Point2::new(260.0, 360.0),
+            10,
+            10,
+            50.0,
+            2.0,
         );
 
         s.add_planet(
@@ -91,7 +91,7 @@ impl MainState {
 
     #[inline]
     fn remove_planet(&mut self, id: usize) {
-        self.planets.remove(&id);
+        self.planets.remove(&id).expect("Tried to remove planet but it wasn't in the hashmap.");
         if let Some(trail) = self.planet_trails.get_mut(&id) {
             trail.stop_emitting();
         }
@@ -100,7 +100,13 @@ impl MainState {
     #[inline]
     fn draw_debug_info(&self, ctx: &mut Context) -> GameResult {
         let text = graphics::Text::new(
-            format!("{:.3}\nBodies: {}\nPlanet Trails: {}", timer::fps(ctx), self.planets.len(), self.planet_trails.len())
+            format!(
+                "{:.3}\nBodies: {}\nPlanet Trails: {}\nParticle Count: {}",
+                timer::fps(ctx),
+                self.planets.len(),
+                self.planet_trails.len(),
+                self.particle_count(),
+            )
         );
         graphics::draw(
             ctx,
@@ -117,24 +123,35 @@ impl MainState {
             [0.0, 1.0, 0.0, 1.0].into(),
         )?;
         graphics::draw(ctx, &line, DrawParam::default())?;
-        tools::draw_circle(ctx, &mouse_info.down_pos, 2.0, [1.0, 1.0, 1.0, 0.4].into())?;
+        tools::draw_circle(ctx, mouse_info.down_pos, 2.0, [1.0, 1.0, 1.0, 0.4].into())?;
 
         Ok(())
     }
 
-    fn collide_planets(new_id: usize, pl1: &Planet, pl2: &Planet) -> Planet {  // Returns new planet that is sum of other two.
+        #[inline]
+    fn collide_planets(&self, planets: &HashSet<usize>) -> Planet {  // Returns new planet that is sum of other two.
         // Conservation of momentum
-        let total_mass = pl1.mass + pl2.mass;
-        let m_i = pl1.mass * pl1.velocity + pl2.mass * pl2.velocity;
-        let total_volume = tools::volume_of_sphere(pl1.radius) + tools::volume_of_sphere(pl2.radius);
+        let mut total_mass = 0.0;
+        let mut total_volume = 0.0;
+        let mut inital_momentum = Vector2::new(0.0, 0.0);
+        let mut sum_of_rm = Point2::new(0.0, 0.0);      // Centre of mass of system is this divided by total mass of all bodies
+
+        for id in planets.iter() {
+            let p = self.planets.get(id).expect(&format!("Planet {} not in hashmap.", id)).borrow();
+            total_mass += p.mass;
+            total_volume += tools::volume_of_sphere(p.radius);
+            inital_momentum += p.mass * p.velocity;
+
+            sum_of_rm.x += p.position.x * p.mass;
+            sum_of_rm.y += p.position.y * p.mass;
+        }
+
         let new_radius = tools::inverse_volume_of_sphere(total_volume);
         // Use centre of mass as new position
-        let new_position = Point2::new(
-            (pl1.position.x * pl1.mass + pl2.position.x * pl2.mass)/total_mass,
-            (pl1.position.y * pl1.mass + pl2.position.y * pl2.mass)/total_mass
-        );
+        let new_position = sum_of_rm/total_mass;
 
-        Planet::new(new_id, new_position, Some(m_i/total_mass), Some(total_mass), new_radius)
+        // ID is set to 0, and is then changed afterwards.
+        Planet::new(0, new_position, Some(inital_momentum/total_mass), Some(total_mass), new_radius)
     }
 
     fn spawn_square_of_planets(
@@ -170,6 +187,60 @@ impl MainState {
             );
         }
     }
+
+    fn particle_count(&self) -> usize {
+        let mut total = 0;
+        for (_, trail) in self.planet_trails.iter() {
+            total += trail.particle_count();
+        }
+        total
+    }
+
+    #[inline]
+    fn put_in_collision_group(collision_groups: &mut Vec<HashSet<usize>>, i_id: usize, j_id: usize) {
+        let mut now_in_group = false;
+        for collision_group in collision_groups.iter_mut() {
+            let contains_i = collision_group.contains(&i_id);
+            let contains_j = collision_group.contains(&j_id);
+
+            if contains_i && contains_j {
+                // Do nothing
+            } else if contains_i {
+                collision_group.insert(j_id);
+            } else if contains_j {
+                collision_group.insert(i_id);
+            }
+
+            if contains_i || contains_j {
+                now_in_group = true;
+                break
+            }
+        }
+
+        if !now_in_group {  // Start a new group
+            let mut new_set = HashSet::with_capacity(2);
+            new_set.insert(i_id);
+            new_set.insert(j_id);
+            collision_groups.push(new_set);
+        }
+    }
+
+    #[inline]
+    fn resolve_collisions(&mut self, collision_groups: &Vec<HashSet<usize>>) {
+        let mut new_planets = Vec::new();
+        for collision_group in collision_groups.iter() {
+            new_planets.push(self.collide_planets(&collision_group));
+            // Remove planets in each collision group (since they will be replaced by new planet)
+            for id in collision_group {
+                self.remove_planet(*id);
+            }
+        }
+
+        // Add new planets
+        for planet in new_planets {
+            self.add_planet_raw(planet);
+        }
+    }
 }
 
 impl event::EventHandler for MainState {
@@ -177,60 +248,47 @@ impl event::EventHandler for MainState {
         let dt_duration = timer::average_delta(ctx);
         let dt = timer::duration_to_f64(dt_duration) as f32;
 
-        let mut colliding_planets = Vec::with_capacity(self.planets.len());
-        let mut new_planets = Vec::with_capacity(self.planets.len()/2);
+        /*
+            Groups that are colliding.
+            E.g: vec![ vec![1, 4, 2], vec![5, 3] ]
+        */
+        let mut collision_groups: Vec<HashSet<usize>> = Vec::with_capacity(self.planets.len()/2);
 
         // Remove dead particle trails
         self.planet_trails.retain(|_, trail| !trail.is_dead());
 
         let keys: Vec<&usize> = self.planets.keys().collect();
         let len = self.planets.len();
-        for i in 0..len-1 {
-            if !colliding_planets.contains(keys[i]) {
+
+        if len > 0 {
+            for i in 0..len-1 {
                 let pl1 = self.planets.get(keys[i]).expect("Couldn't get planet 1");
                 for j in i+1..len {
-                    if !colliding_planets.contains(keys[j]) {
-                        let pl2 = self.planets.get(keys[j]).expect("Couldn't get planet 2");
-                        let colliding = {
-                            let bpl1 = pl1.borrow();
-                            let bpl2 = pl2.borrow();
-                            tools::check_collision(&bpl1.position, &bpl2.position, bpl1.radius, bpl2.radius)
-                        };
-
-                        if colliding {
-                            colliding_planets.push(*keys[i]);
-                            colliding_planets.push(*keys[j]);
-
-                            new_planets.push(Self::collide_planets(self.planet_id_count, &pl1.borrow(), &pl2.borrow()));
-                            self.planet_id_count += 1;
-                        } else {
-                            tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut());
-                        }
+                    let pl2 = self.planets.get(keys[j]).expect("Couldn't get planet 2");
+                    let colliding = {
+                        let bpl1 = pl1.borrow();
+                        let bpl2 = pl2.borrow();
+                        tools::check_collision(&bpl1, &bpl2)
+                    };
+    
+                    if colliding {
+                        Self::put_in_collision_group(&mut collision_groups, *keys[i], *keys[j]);
+                    } else {
+                        tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut());
                     }
                 }
             }
-        }
 
-        // Remove collided planets
-        self.planets.retain(|id, p| !colliding_planets.contains(id));
-        for (id, trail) in self.planet_trails.iter_mut() {
-            if colliding_planets.contains(id) {
-                trail.stop_emitting();
+            self.resolve_collisions(&collision_groups);
+    
+            // Update planets
+            for (_, pl) in self.planets.iter() {
+                pl.borrow_mut().update(dt);
             }
-        }
-
-        // Update planets still around
-        for (_, pl) in self.planets.iter() {
-            pl.borrow_mut().update(dt, &dt_duration);
         }
 
         // Update trails
         self.update_planet_trails(dt, &dt_duration);
-
-        // Add new planets
-        for new_planet in new_planets {
-            self.add_planet_raw(new_planet);
-        }
 
         Ok(())
     }
