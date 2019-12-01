@@ -1,6 +1,6 @@
 mod tools;
 mod planet;
-mod trails;
+mod emitters;
 
 use ggez::event;
 use ggez::graphics::{self, DrawParam, Mesh};
@@ -14,15 +14,16 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use planet::Planet;
-use trails::{Emitter, ParticleTrail};
+use emitters::{Emitter, ParticleSystem, ParticleSystemParam};
 
 pub const G: f32 = 0.0001;    // Gravitational constant
+const SPAWN_PLANET_RADIUS: f32 = 10.0;
+const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.0000001;
 
 struct MainState {
     planet_id_count: usize,
     planets: HashMap<usize, RefCell<Planet>>,
-    emitters: Vec<Box<dyn Emitter>>,
-    planet_trails: HashMap<usize, ParticleTrail>,
+    planet_trails: HashMap<usize, ParticleSystem>,
     mouse_info: MouseInfo,
 }
 
@@ -31,7 +32,6 @@ impl MainState {
         let mut s = MainState {
             planet_id_count: 0,
             planets: HashMap::new(),
-            emitters: Vec::new(),
             planet_trails: HashMap::new(),
             mouse_info: MouseInfo::default(),
         };
@@ -40,16 +40,16 @@ impl MainState {
             Point2::new(300.0, 400.0),
             None,
             None,
-            30.0
+            50.0
         );
 
-        s.spawn_square_of_planets(
-            Point2::new(260.0, 360.0),
-            10,
-            10,
-            50.0,
-            2.0,
-        );
+        // s.spawn_square_of_planets(
+        //     Point2::new(260.0, 260.0),
+        //     10,
+        //     10,
+        //     50.0,
+        //     5.0,
+        // );
 
         s.add_planet(
             Point2::new(600.0, 400.0),
@@ -76,14 +76,14 @@ impl MainState {
     fn add_planet_raw(&mut self, mut planet: Planet) {
         planet.id = self.planet_id_count;
 
+        self.planet_trails.insert(
+            self.planet_id_count,
+            ParticleSystem::new(planet.position, ParticleSystemParam::planet_trail())
+        );
+
         self.planets.insert(
             self.planet_id_count,
             RefCell::new(planet)
-        );
-
-        self.planet_trails.insert(
-            self.planet_id_count,
-            ParticleTrail::new()
         );
 
         self.planet_id_count += 1;
@@ -115,6 +115,32 @@ impl MainState {
         )
     }
 
+    fn draw_vectors(&self, ctx: &mut Context, velocities: bool, forces: bool) -> GameResult {
+        for (_, planet) in self.planets.iter() {
+            let planet_borrow = planet.borrow();
+            if velocities && planet_borrow.velocity.magnitude_squared() > 1.0 {
+                let vel_line = graphics::Mesh::new_line(
+                    ctx,
+                    &[planet_borrow.position, planet_borrow.position + planet_borrow.velocity],
+                    1.0,
+                    [0.0, 1.0, 0.0, 1.0].into()
+                )?;
+                graphics::draw(ctx, &vel_line, DrawParam::default())?;
+            }
+
+            if forces && planet_borrow.last_resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
+                let force_line = graphics::Mesh::new_line(
+                    ctx,
+                    &[planet_borrow.position, planet_borrow.position + planet_borrow.last_resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
+                    1.0,
+                    [1.0, 0.0, 0.0, 1.0].into()
+                )?;
+                graphics::draw(ctx, &force_line, DrawParam::default())?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn draw_mouse_drag(ctx: &mut Context, mouse_info: &MouseInfo) -> GameResult {
         let line = Mesh::new_line(
             ctx,
@@ -123,7 +149,7 @@ impl MainState {
             [0.0, 1.0, 0.0, 1.0].into(),
         )?;
         graphics::draw(ctx, &line, DrawParam::default())?;
-        tools::draw_circle(ctx, mouse_info.down_pos, 2.0, [1.0, 1.0, 1.0, 0.4].into())?;
+        tools::draw_circle(ctx, mouse_info.down_pos, SPAWN_PLANET_RADIUS, [1.0, 1.0, 1.0, 0.4].into())?;
 
         Ok(())
     }
@@ -193,6 +219,7 @@ impl MainState {
         for (_, trail) in self.planet_trails.iter() {
             total += trail.particle_count();
         }
+
         total
     }
 
@@ -238,6 +265,7 @@ impl MainState {
 
         // Add new planets
         for planet in new_planets {
+            //self.debris_emitters.push(ParticleSystem::new(planet.position, ParticleSystemParam::debris_emitter()));
             self.add_planet_raw(planet);
         }
     }
@@ -254,7 +282,7 @@ impl event::EventHandler for MainState {
         */
         let mut collision_groups: Vec<HashSet<usize>> = Vec::with_capacity(self.planets.len()/2);
 
-        // Remove dead particle trails
+        // Remove dead particle emitters
         self.planet_trails.retain(|_, trail| !trail.is_dead());
 
         let keys: Vec<&usize> = self.planets.keys().collect();
@@ -312,6 +340,8 @@ impl event::EventHandler for MainState {
             planet.borrow().draw(ctx)?;
         }
 
+        self.draw_vectors(ctx, true, true)?;
+
         self.draw_debug_info(ctx)?;
         graphics::present(ctx)?;
         Ok(())
@@ -327,7 +357,7 @@ impl event::EventHandler for MainState {
         self.mouse_info.down = false;
 
         if button == MouseButton::Left {
-            self.add_planet(self.mouse_info.down_pos, Some(self.mouse_info.down_pos - Point2::new(x, y)), None, 2.0);
+            self.add_planet(self.mouse_info.down_pos, Some(self.mouse_info.down_pos - Point2::new(x, y)), None, SPAWN_PLANET_RADIUS);
         }
     }
 
@@ -372,7 +402,7 @@ pub fn main() -> GameResult {
         .add_resource_path(resource_dir)
         .window_mode(
             WindowMode::default()
-                .dimensions(1000.0, 800.0)
+                .dimensions(1280.0, 720.0)
         )
         .window_setup(
             WindowSetup::default()

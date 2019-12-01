@@ -32,13 +32,11 @@ pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet) {
 
     let dist_squared = dist_vec.x.powi(2) + dist_vec.y.powi(2);
 
-    //if dist_squared > pl1.radius.powi(2) + pl2.radius.powi(2) {    // if inside other body, no force. NOTE: Already checked.
     let force = (G * pl1.mass * pl2.mass)/dist_squared;
     let force_vec = get_components(force, angle);
 
     pl1.resultant_force += force_vec;
     pl2.resultant_force -= force_vec;
-    //}
 }
 
 // Box collision for circles (AABB), and then circle collision

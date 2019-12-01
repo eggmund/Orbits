@@ -13,6 +13,7 @@ pub struct Planet {
     pub mass: f32,
     pub radius: f32,
     pub resultant_force: Vector2<f32>,
+    pub last_resultant_force: Vector2<f32>,       // For debug
 }
 
 impl Planet {
@@ -24,6 +25,7 @@ impl Planet {
             mass: mass.unwrap_or_else(|| Self::mass_from_radius(radius, PLANET_DENSITY)),
             radius,
             resultant_force: Vector2::new(0.0, 0.0),
+            last_resultant_force: Vector2::new(0.0, 0.0),
         }
     }
 
@@ -33,6 +35,7 @@ impl Planet {
         self.velocity += acceleration * dt;
         self.position += self.velocity * dt;
         
+        self.last_resultant_force = self.resultant_force;
         self.resultant_force = Vector2::new(0.0, 0.0);
     }
 
