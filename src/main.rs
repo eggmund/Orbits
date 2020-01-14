@@ -3,7 +3,7 @@ mod planet;
 mod emitters;
 
 use ggez::event::{self, KeyCode, KeyMods};
-use ggez::graphics::{self, DrawParam, Mesh};
+use ggez::graphics::{self, DrawParam, Mesh, MeshBuilder};
 use ggez::nalgebra::{Point2, Vector2};
 use ggez::{Context, GameResult};
 use ggez::timer;
@@ -71,12 +71,13 @@ impl MainState {
 
         s.add_planet_with_moons(
             Point2::new(640.0, 430.0),
-            None, //Some(Vector2::new(20.0, 0.0)),
+            None,
             None,
             50.0,
-            500,
-            (20.0, 100.0),
+            200,
+            (15.0, 100.0),
             (0.5, 1.0),
+            true,
         );
 
         Ok(s)
@@ -103,6 +104,7 @@ impl MainState {
         moon_num: usize,
         moon_orbit_radius_range: (f32, f32),    // Starting from surface of planet
         moon_body_radius_range: (f32, f32),
+        orbit_direction_clockwise: bool,  // anticlockwise = false, clockwise = true
     ) {
         self.add_planet(position, velocity, main_planet_mass, main_planet_radius);  // Add main planet
         let (main_planet_mass, frame_velocity) = {
@@ -118,7 +120,14 @@ impl MainState {
             let orbit_speed = tools::circular_orbit_speed(main_planet_mass, orbit_radius);
             let start_angle = self.rand_thread.gen_range(0.0, TWO_PI);      // Angle from main planet to moon
             let start_pos = tools::get_components(orbit_radius, start_angle);   // Position on circle orbit where planet will start
-            let start_velocity = tools::get_components(orbit_speed, start_angle + PI/2.0);  // 90 degrees to angle with planet
+            let start_velocity = tools::get_components(
+                orbit_speed,
+                if orbit_direction_clockwise {
+                    start_angle + PI/2.0
+                } else {
+                    start_angle - PI/2.0
+                }
+            );  // 90 degrees to angle with planet
             let moon_radius = self.rand_thread.gen_range(moon_body_radius_range.0, moon_body_radius_range.1);
 
             self.add_planet(
@@ -393,16 +402,25 @@ impl event::EventHandler for MainState {
             //self.draw_fake_planet(ctx, self.mouse_info.down_pos, 5.0)?;
         }
 
+        let mut planets_mesh_builder = MeshBuilder::new();
+        let mut particles_mesh_builder = MeshBuilder::new();
+
         for (_, trail) in self.planet_trails.iter() {
-            trail.draw(ctx)?;
+            trail.draw(&mut particles_mesh_builder);
         }
 
         for (_, planet) in self.planets.iter() {
-            planet.borrow().draw(ctx)?;
+            planet.borrow().draw(&mut planets_mesh_builder);
         }
 
+        let particles_mesh = particles_mesh_builder.build(ctx)?;
+        let planets_mesh = planets_mesh_builder.build(ctx)?;
+
+        graphics::draw(ctx, &particles_mesh, DrawParam::default())?;
+        graphics::draw(ctx, &planets_mesh, DrawParam::default())?;
+
         if self.show_vector_debug {
-            self.draw_vectors(ctx, false, true)?;
+            self.draw_vectors(ctx, true, true)?;
         }
 
         self.draw_debug_info(ctx)?;

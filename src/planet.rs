@@ -1,5 +1,5 @@
 use ggez::nalgebra::{Vector2, Point2};
-use ggez::graphics;
+use ggez::graphics::{self, MeshBuilder, DrawMode};
 use ggez::{Context, GameResult};
 
 use crate::tools;
@@ -39,8 +39,15 @@ impl Planet {
         self.resultant_force = Vector2::new(0.0, 0.0);
     }
 
-    pub fn draw(&self, ctx: &mut Context) -> GameResult {
-        tools::draw_circle(ctx, self.position, self.radius, graphics::WHITE)
+    pub fn draw(&self, mesh_builder: &mut MeshBuilder) {
+        //tools::draw_circle(ctx, self.position, self.radius, graphics::WHITE)
+        mesh_builder.circle(
+            DrawMode::fill(),
+            self.position,
+            self.radius,
+            0.1,
+            graphics::WHITE
+        );
     }
 
     #[inline]

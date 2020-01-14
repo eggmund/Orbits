@@ -1,7 +1,7 @@
 use ggez::nalgebra::{Point2, Vector2};
 use ggez::{Context, GameResult};
 use ggez::timer;
-use ggez::graphics::Color;
+use ggez::graphics::{self, Color, MeshBuilder, DrawMode};
 use rand::{rngs::ThreadRng, Rng};
 
 use std::time::{Instant, Duration};
@@ -11,7 +11,7 @@ use crate::tools;
 
 pub trait Emitter {
     fn update(&mut self, dt: f32, dt_duration: &Duration, updated_position: Option<Point2<f32>>, rand_thread: &mut ThreadRng);
-    fn draw(&self, ctx: &mut Context) -> GameResult;
+    fn draw(&self, mesh_builder: &mut MeshBuilder);
     fn start_emitting(&mut self);
     fn stop_emitting(&mut self);
 }
@@ -114,21 +114,21 @@ impl Emitter for ParticleSystem {
         }
     }
 
-    fn draw(&self, ctx: &mut Context) -> GameResult {
+    fn draw(&self, mesh_builder: &mut MeshBuilder) {
         for p in self.particles.iter() {
             let mut col = self.params.base_color.clone();
             if self.params.fade {
                 col.a *= 1.0 - timer::duration_to_f64(Instant::now().duration_since(p.time_created)) as f32/timer::duration_to_f64(self.params.particle_lifetime) as f32;
             }
 
-            tools::draw_circle(
-                ctx,
+            mesh_builder.circle(
+                DrawMode::fill(),
                 p.position,
                 p.radius,
+                0.1,
                 col
-            )?;
+            );
         }
-        Ok(())
     }
 
     fn start_emitting(&mut self) {
@@ -169,7 +169,7 @@ impl ParticleSystemParam {
         ParticleSystemParam {
             base_color: [0.1, 0.4, 0.8, 1.0].into(),
             fade: true,
-            emission_period: Duration::from_millis(0),
+            emission_period: Duration::from_millis(50),
             particle_lifetime: Duration::from_millis(700),
             particle_speed_minmax: (1.0, 10.0),
             particle_radius_minmax: (0.5, 2.0),
