@@ -64,7 +64,7 @@ pub fn draw_circle(ctx: &mut Context, position: Point2<f32>, radius: f32, color:
 
 // Returns the magnitude of the velocity (speed) needed for a circular orbit around another planet
 // Orbit is circular when the kinetic energy does not change.
-// K = GMm/2r  -- Derived from centripital force (in circular motion) = gravitational force
+// K = GMm/2r  -- Derived from centripetal force (in circular motion) = gravitational force
 // GMm/2r = 1/2 mv^2
 // GM/2r = 1/2 v^2
 // sqrt(GM/r) = v

@@ -2,7 +2,7 @@ mod tools;
 mod planet;
 mod emitters;
 
-use ggez::event;
+use ggez::event::{self, KeyCode, KeyMods};
 use ggez::graphics::{self, DrawParam, Mesh};
 use ggez::nalgebra::{Point2, Vector2};
 use ggez::{Context, GameResult};
@@ -20,10 +20,10 @@ use std::f32::consts::PI;
 use planet::Planet;
 use emitters::{Emitter, ParticleSystem, ParticleSystemParam};
 
-pub const G: f32 = 0.001;    // Gravitational constant
+pub const G: f32 = 0.0001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 10.0;
-const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.0000001;
+const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.00005;
 
 struct MainState {
     planet_id_count: usize,
@@ -32,7 +32,7 @@ struct MainState {
     mouse_info: MouseInfo,
     rand_thread: ThreadRng,
 
-    draw_vector_debug: bool,
+    show_vector_debug: bool,
 }
 
 impl MainState {
@@ -44,7 +44,7 @@ impl MainState {
             mouse_info: MouseInfo::default(),
             rand_thread: rand::thread_rng(),
 
-            draw_vector_debug: false,
+            show_vector_debug: false,
         };
 
         // s.add_planet(
@@ -70,13 +70,13 @@ impl MainState {
         // );
 
         s.add_planet_with_moons(
-            Point2::new(400.0, 400.0),
+            Point2::new(640.0, 430.0),
             None, //Some(Vector2::new(20.0, 0.0)),
             None,
-            20.0,
-            200,
-            (30.0, 200.0),
-            (1.0, 2.0),
+            50.0,
+            500,
+            (20.0, 100.0),
+            (0.5, 1.0),
         );
 
         Ok(s)
@@ -149,7 +149,9 @@ impl MainState {
 
     #[inline]
     fn remove_planet(&mut self, id: usize) {
-        self.planets.remove(&id).expect("Tried to remove planet but it wasn't in the hashmap.");
+        if self.planets.remove(&id).is_none() {
+            println!("WARNING: Tried to remove planet {} but it wasn't in the hashmap.", id);
+        }
         if let Some(trail) = self.planet_trails.get_mut(&id) {
             trail.stop_emitting();
         }
@@ -220,7 +222,7 @@ impl MainState {
         let mut inital_momentum = Vector2::new(0.0, 0.0);
         let mut sum_of_rm = Point2::new(0.0, 0.0);      // Centre of mass of system is this divided by total mass of all bodies
 
-        for id in planets.iter() {
+        for id in planets.iter().filter(|id| self.planets.contains_key(id)) {
             let p = self.planets.get(id).expect(&format!("Planet {} not in hashmap.", id)).borrow();
             total_mass += p.mass;
             total_volume += tools::volume_of_sphere(p.radius);
@@ -399,8 +401,8 @@ impl event::EventHandler for MainState {
             planet.borrow().draw(ctx)?;
         }
 
-        if self.draw_vector_debug {
-            self.draw_vectors(ctx, true, true)?;
+        if self.show_vector_debug {
+            self.draw_vectors(ctx, false, true)?;
         }
 
         self.draw_debug_info(ctx)?;
@@ -424,6 +426,20 @@ impl event::EventHandler for MainState {
 
     fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, _dx: f32, _dy: f32) {
         self.mouse_info.current_drag_position = Point2::new(x, y);
+    }
+
+
+    fn key_down_event(
+        &mut self,
+        _ctx: &mut Context,
+        keycode: KeyCode,
+        _keymod: KeyMods,
+        _repeat: bool,
+    ) {
+        match keycode {
+            KeyCode::D => self.show_vector_debug = !self.show_vector_debug,
+            _ => (),
+        }
     }
 }
 
