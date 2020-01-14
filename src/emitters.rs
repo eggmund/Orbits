@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 use crate::tools;
 
 pub trait Emitter {
-    fn update(&mut self, dt: f32, dt_duration: &Duration, updated_position: Option<Point2<f32>>);
+    fn update(&mut self, dt: f32, dt_duration: &Duration, updated_position: Option<Point2<f32>>, rand_thread: &mut ThreadRng);
     fn draw(&self, ctx: &mut Context) -> GameResult;
     fn start_emitting(&mut self);
     fn stop_emitting(&mut self);
@@ -18,10 +18,9 @@ pub trait Emitter {
 
 pub struct ParticleSystem {
     particles: VecDeque<Particle>,
-    rand_thread: ThreadRng,
     spawn_timer: Duration,
     position: Point2<f32>,
-    emitt: bool,
+    emit: bool,
     params: ParticleSystemParam,
     stop_timer: Duration,
 }
@@ -30,18 +29,17 @@ impl ParticleSystem {
     pub fn new(position: Point2<f32>, params: ParticleSystemParam) -> ParticleSystem {
         ParticleSystem {
             particles: VecDeque::with_capacity(0),
-            rand_thread: rand::thread_rng(),
             spawn_timer: Duration::from_secs(0),
             position,
-            emitt: true,
+            emit: true,
             params,
             stop_timer: Duration::new(0, 0),
         }
     }
 
-    fn add_particle(&mut self, position: Point2<f32>) {
-        let radius = self.params.particle_radius_minmax.0 + (self.rand_thread.gen::<f32>() * (self.params.particle_radius_minmax.1 - self.params.particle_radius_minmax.0));
-        let velocity = self.random_velocity();
+    fn add_particle(&mut self, position: Point2<f32>, rand_thread: &mut ThreadRng) {
+        let radius = self.params.particle_radius_minmax.0 + (rand_thread.gen::<f32>() * (self.params.particle_radius_minmax.1 - self.params.particle_radius_minmax.0));
+        let velocity = self.random_velocity(rand_thread);
         
         self.particles.push_back(Particle {
             position,
@@ -64,7 +62,7 @@ impl ParticleSystem {
 
     #[inline]
     pub fn is_dead(&self) -> bool {
-        !self.emitt && self.particles.is_empty()
+        !self.emit && self.particles.is_empty()
     }
 
     #[inline]
@@ -72,19 +70,19 @@ impl ParticleSystem {
         self.particles.len()
     }
 
-    fn random_velocity(&mut self) -> Vector2<f32> {
+    fn random_velocity(&mut self, rand_thread: &mut ThreadRng) -> Vector2<f32> {
         use std::f32::consts::PI;
         const TWO_PI: f32 = PI * 2.0;
 
-        let angle = self.rand_thread.gen::<f32>() * TWO_PI;
-        let speed = self.params.particle_speed_minmax.0 + self.rand_thread.gen::<f32>() * (self.params.particle_speed_minmax.1 - self.params.particle_speed_minmax.0);
+        let angle = rand_thread.gen::<f32>() * TWO_PI;
+        let speed = self.params.particle_speed_minmax.0 + rand_thread.gen::<f32>() * (self.params.particle_speed_minmax.1 - self.params.particle_speed_minmax.0);
 
         tools::get_components(speed, angle)
     }
 }
 
 impl Emitter for ParticleSystem {
-    fn update(&mut self, dt: f32, dt_duration: &Duration, updated_position: Option<Point2<f32>>) {
+    fn update(&mut self, dt: f32, dt_duration: &Duration, updated_position: Option<Point2<f32>>, rand_thread: &mut ThreadRng) {
         if let Some(pos) = updated_position {
             self.position = pos;
         }
@@ -102,13 +100,13 @@ impl Emitter for ParticleSystem {
             }
         }
 
-        if self.emitt {
+        if self.emit {
             self.spawn_timer += *dt_duration;
             if self.spawn_timer >= self.params.emission_period {
                 let rounds_missed = (timer::duration_to_f64(self.spawn_timer)/timer::duration_to_f64(self.params.emission_period)).floor() as usize;     // Due to framerate
                 //println!("Rounds missed: {}. Timer: {:?}, round time: {:?}", rounds_missed, self.spawn_timer, self.params.emission_period);
                 for _ in 0..rounds_missed {
-                    self.add_particle(self.position);
+                    self.add_particle(self.position, rand_thread);
                 }
 
                 self.spawn_timer -= self.params.emission_period + (self.params.emission_period * (rounds_missed - 1) as u32);
@@ -134,11 +132,11 @@ impl Emitter for ParticleSystem {
     }
 
     fn start_emitting(&mut self) {
-        self.emitt = true;
+        self.emit = true;
     }
 
     fn stop_emitting(&mut self) {
-        self.emitt = false;
+        self.emit = false;
     }
 }
 

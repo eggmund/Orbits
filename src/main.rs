@@ -20,7 +20,7 @@ use std::f32::consts::PI;
 use planet::Planet;
 use emitters::{Emitter, ParticleSystem, ParticleSystemParam};
 
-pub const G: f32 = 0.01;    // Gravitational constant
+pub const G: f32 = 0.001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 10.0;
 const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.0000001;
@@ -31,6 +31,8 @@ struct MainState {
     planet_trails: HashMap<usize, ParticleSystem>,
     mouse_info: MouseInfo,
     rand_thread: ThreadRng,
+
+    draw_vector_debug: bool,
 }
 
 impl MainState {
@@ -41,6 +43,8 @@ impl MainState {
             planet_trails: HashMap::new(),
             mouse_info: MouseInfo::default(),
             rand_thread: rand::thread_rng(),
+
+            draw_vector_debug: false,
         };
 
         // s.add_planet(
@@ -66,13 +70,13 @@ impl MainState {
         // );
 
         s.add_planet_with_moons(
-            Point2::new(200.0, 400.0),
-            Some(Vector2::new(50.0, 0.0)),
+            Point2::new(400.0, 400.0),
+            None, //Some(Vector2::new(20.0, 0.0)),
             None,
             20.0,
-            1,
-            (30.0, 60.0),
-            (1.0, 5.0),
+            200,
+            (30.0, 200.0),
+            (1.0, 2.0),
         );
 
         Ok(s)
@@ -263,7 +267,8 @@ impl MainState {
                     Some(planet.borrow().position)
                 } else {
                     None
-                }
+                },
+                &mut self.rand_thread,
             );
         }
     }
@@ -327,7 +332,7 @@ impl MainState {
 
 impl event::EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        let dt_duration = timer::average_delta(ctx);
+        let dt_duration = timer::delta(ctx);
         let dt = timer::duration_to_f64(dt_duration) as f32;
 
         /*
@@ -394,7 +399,9 @@ impl event::EventHandler for MainState {
             planet.borrow().draw(ctx)?;
         }
 
-        self.draw_vectors(ctx, true, true)?;
+        if self.draw_vector_debug {
+            self.draw_vectors(ctx, true, true)?;
+        }
 
         self.draw_debug_info(ctx)?;
         graphics::present(ctx)?;
