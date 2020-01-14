@@ -9,14 +9,19 @@ use ggez::{Context, GameResult};
 use ggez::timer;
 use ggez::input::mouse::MouseButton;
 
+use rand::prelude::*;
+use rand::rngs::ThreadRng;
+
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::time::Duration;
+use std::f32::consts::PI;
 
 use planet::Planet;
 use emitters::{Emitter, ParticleSystem, ParticleSystemParam};
 
-pub const G: f32 = 0.0001;    // Gravitational constant
+pub const G: f32 = 0.01;    // Gravitational constant
+pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 10.0;
 const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.0000001;
 
@@ -25,6 +30,7 @@ struct MainState {
     planets: HashMap<usize, RefCell<Planet>>,
     planet_trails: HashMap<usize, ParticleSystem>,
     mouse_info: MouseInfo,
+    rand_thread: ThreadRng,
 }
 
 impl MainState {
@@ -34,28 +40,39 @@ impl MainState {
             planets: HashMap::new(),
             planet_trails: HashMap::new(),
             mouse_info: MouseInfo::default(),
+            rand_thread: rand::thread_rng(),
         };
 
-        s.add_planet(
-            Point2::new(300.0, 400.0),
-            None,
-            None,
-            50.0
-        );
-
-        // s.spawn_square_of_planets(
-        //     Point2::new(260.0, 260.0),
-        //     10,
-        //     10,
-        //     50.0,
-        //     5.0,
+        // s.add_planet(
+        //     Point2::new(640.0, 360.0),
+        //     None,
+        //     None,
+        //     50.0
         // );
 
-        s.add_planet(
-            Point2::new(600.0, 400.0),
+        // // s.spawn_square_of_planets(
+        // //     Point2::new(260.0, 260.0),
+        // //     10,
+        // //     10,
+        // //     50.0,
+        // //     5.0,
+        // // );
+
+        // s.add_planet(
+        //     Point2::new(750.0, 360.0),
+        //     Some(Vector2::new(0.0, 50.0)),
+        //     None,
+        //     5.0
+        // );
+
+        s.add_planet_with_moons(
+            Point2::new(200.0, 400.0),
+            Some(Vector2::new(50.0, 0.0)),
             None,
-            None,
-            30.0
+            20.0,
+            1,
+            (30.0, 60.0),
+            (1.0, 5.0),
         );
 
         Ok(s)
@@ -70,6 +87,43 @@ impl MainState {
             mass,
             radius
         ));
+    }
+
+    // Spawns a planet with other 
+    fn add_planet_with_moons(
+        &mut self,
+        position: Point2<f32>,
+        velocity: Option<Vector2<f32>>,
+        main_planet_mass: Option<f32>,
+        main_planet_radius: f32,
+        moon_num: usize,
+        moon_orbit_radius_range: (f32, f32),    // Starting from surface of planet
+        moon_body_radius_range: (f32, f32),
+    ) {
+        self.add_planet(position, velocity, main_planet_mass, main_planet_radius);  // Add main planet
+        let (main_planet_mass, frame_velocity) = {
+            let p = self.planets.get(&(self.planet_id_count - 1)).unwrap().borrow();
+            (p.mass, p.velocity)
+        };
+
+        // All moons travel in the same direction (since over time moons going in opposite directions will collide)
+        let anticlockwise = self.rand_thread.gen_bool(0.5);   // true = anticlockwise, false = clockwise
+
+        for _ in 0..moon_num {
+            let orbit_radius = main_planet_radius + self.rand_thread.gen_range(moon_orbit_radius_range.0, moon_orbit_radius_range.1);
+            let orbit_speed = tools::circular_orbit_speed(main_planet_mass, orbit_radius);
+            let start_angle = self.rand_thread.gen_range(0.0, TWO_PI);      // Angle from main planet to moon
+            let start_pos = tools::get_components(orbit_radius, start_angle);   // Position on circle orbit where planet will start
+            let start_velocity = tools::get_components(orbit_speed, start_angle + PI/2.0);  // 90 degrees to angle with planet
+            let moon_radius = self.rand_thread.gen_range(moon_body_radius_range.0, moon_body_radius_range.1);
+
+            self.add_planet(
+                position + start_pos,
+                Some(start_velocity + frame_velocity),  // Add velocity of main planet
+                None,
+                moon_radius
+            );
+        }
     }
 
     #[inline]
@@ -278,7 +332,7 @@ impl event::EventHandler for MainState {
 
         /*
             Groups that are colliding.
-            E.g: vec![ vec![1, 4, 2], vec![5, 3] ]
+            E.g: vec![ {1, 4, 2}, {5, 3} ]
         */
         let mut collision_groups: Vec<HashSet<usize>> = Vec::with_capacity(self.planets.len()/2);
 
@@ -402,7 +456,7 @@ pub fn main() -> GameResult {
         .add_resource_path(resource_dir)
         .window_mode(
             WindowMode::default()
-                .dimensions(1280.0, 720.0)
+                .dimensions(1280.0, 860.0)
         )
         .window_setup(
             WindowSetup::default()
