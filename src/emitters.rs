@@ -169,7 +169,7 @@ impl ParticleSystemParam {
         ParticleSystemParam {
             base_color: [0.1, 0.4, 0.8, 1.0].into(),
             fade: true,
-            emission_period: Duration::from_millis(50),
+            emission_period: Duration::from_millis(0),
             particle_lifetime: Duration::from_millis(700),
             particle_speed_minmax: (1.0, 10.0),
             particle_radius_minmax: (0.5, 2.0),

@@ -24,6 +24,7 @@ pub const G: f32 = 0.0001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 10.0;
 const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.00005;
+const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
 
 struct MainState {
     planet_id_count: usize,
@@ -54,13 +55,14 @@ impl MainState {
         //     50.0
         // );
 
-        // // s.spawn_square_of_planets(
-        // //     Point2::new(260.0, 260.0),
-        // //     10,
-        // //     10,
-        // //     50.0,
-        // //     5.0,
-        // // );
+        // const GAP: f32 = 20.0;
+        // s.spawn_square_of_planets(
+        //     Point2::new(GAP/2.0, GAP/2.0),
+        //     (SCREEN_DIMS.0/GAP).ceil() as u16,
+        //     (SCREEN_DIMS.1/GAP).ceil() as u16,
+        //     GAP,
+        //     1.0,
+        // );
 
         // s.add_planet(
         //     Point2::new(750.0, 360.0),
@@ -74,9 +76,9 @@ impl MainState {
             None,
             None,
             50.0,
-            200,
+            1000,
             (15.0, 100.0),
-            (0.5, 1.0),
+            (0.1, 1.0),
             true,
         );
 
@@ -111,9 +113,6 @@ impl MainState {
             let p = self.planets.get(&(self.planet_id_count - 1)).unwrap().borrow();
             (p.mass, p.velocity)
         };
-
-        // All moons travel in the same direction (since over time moons going in opposite directions will collide)
-        let anticlockwise = self.rand_thread.gen_bool(0.5);   // true = anticlockwise, false = clockwise
 
         for _ in 0..moon_num {
             let orbit_radius = main_planet_radius + self.rand_thread.gen_range(moon_orbit_radius_range.0, moon_orbit_radius_range.1);
@@ -402,22 +401,36 @@ impl event::EventHandler for MainState {
             //self.draw_fake_planet(ctx, self.mouse_info.down_pos, 5.0)?;
         }
 
-        let mut planets_mesh_builder = MeshBuilder::new();
-        let mut particles_mesh_builder = MeshBuilder::new();
-
-        for (_, trail) in self.planet_trails.iter() {
-            trail.draw(&mut particles_mesh_builder);
+        // Draw particles
+        {
+            let mut particles_mesh_builder = MeshBuilder::new();
+            let mut are_particles = false;
+    
+            for (_, trail) in self.planet_trails.iter() {
+                trail.draw(&mut particles_mesh_builder);
+                if !are_particles && trail.particle_count() > 0 {
+                    are_particles = true;
+                }
+            }
+            
+            if are_particles {     // Prevents lyon error when building mesh
+                let particles_mesh = particles_mesh_builder.build(ctx)?;
+                graphics::draw(ctx, &particles_mesh, DrawParam::default())?;
+            }
         }
 
-        for (_, planet) in self.planets.iter() {
-            planet.borrow().draw(&mut planets_mesh_builder);
+
+        // Draw planets on top of particles
+        if !self.planets.is_empty() {
+            let mut planets_mesh_builder = MeshBuilder::new();
+
+            for (_, planet) in self.planets.iter() {
+                planet.borrow().draw(&mut planets_mesh_builder);
+            }
+    
+            let planets_mesh = planets_mesh_builder.build(ctx)?;
+            graphics::draw(ctx, &planets_mesh, DrawParam::default())?;
         }
-
-        let particles_mesh = particles_mesh_builder.build(ctx)?;
-        let planets_mesh = planets_mesh_builder.build(ctx)?;
-
-        graphics::draw(ctx, &particles_mesh, DrawParam::default())?;
-        graphics::draw(ctx, &planets_mesh, DrawParam::default())?;
 
         if self.show_vector_debug {
             self.draw_vectors(ctx, true, true)?;
@@ -497,7 +510,7 @@ pub fn main() -> GameResult {
         .add_resource_path(resource_dir)
         .window_mode(
             WindowMode::default()
-                .dimensions(1280.0, 860.0)
+                .dimensions(SCREEN_DIMS.0, SCREEN_DIMS.1)
         )
         .window_setup(
             WindowSetup::default()
