@@ -78,7 +78,7 @@ impl MainState {
             50.0,
             1000,
             (15.0, 100.0),
-            (0.1, 1.0),
+            (0.2, 1.0),
             true,
         );
 
@@ -86,13 +86,14 @@ impl MainState {
     }
 
     #[inline]
-    fn add_planet(&mut self, position: Point2<f32>, velocity: Option<Vector2<f32>>, mass: Option<f32>, radius: f32) {
+    fn add_planet(&mut self, position: Point2<f32>, velocity: Option<Vector2<f32>>, mass: Option<f32>, radius: f32, spawn_protection: Option<Duration>) {
         self.add_planet_raw(Planet::new(
             self.planet_id_count,
             position,
             velocity,
             mass,
-            radius
+            radius,
+            spawn_protection,
         ));
     }
 
@@ -108,7 +109,7 @@ impl MainState {
         moon_body_radius_range: (f32, f32),
         orbit_direction_clockwise: bool,  // anticlockwise = false, clockwise = true
     ) {
-        self.add_planet(position, velocity, main_planet_mass, main_planet_radius);  // Add main planet
+        self.add_planet(position, velocity, main_planet_mass, main_planet_radius, None);  // Add main planet
         let (main_planet_mass, frame_velocity) = {
             let p = self.planets.get(&(self.planet_id_count - 1)).unwrap().borrow();
             (p.mass, p.velocity)
@@ -133,7 +134,8 @@ impl MainState {
                 position + start_pos,
                 Some(start_velocity + frame_velocity),  // Add velocity of main planet
                 None,
-                moon_radius
+                moon_radius,
+                None,
             );
         }
     }
@@ -245,7 +247,7 @@ impl MainState {
         let new_position = sum_of_rm/total_mass;
 
         // ID is set to 0, and is then changed afterwards.
-        Planet::new(0, new_position, Some(inital_momentum/total_mass), Some(total_mass), new_radius)
+        Planet::new(0, new_position, Some(inital_momentum/total_mass), Some(total_mass), new_radius, None)
     }
 
     fn spawn_square_of_planets(
@@ -263,6 +265,7 @@ impl MainState {
                     None,
                     None,
                     rad,
+                    None,
                 );
             }
         }
@@ -362,15 +365,19 @@ impl event::EventHandler for MainState {
                 let pl1 = self.planets.get(keys[i]).expect("Couldn't get planet 1");
                 for j in i+1..len {
                     let pl2 = self.planets.get(keys[j]).expect("Couldn't get planet 2");
-                    let colliding = {
+                    let (colliding, protection) = {
                         let bpl1 = pl1.borrow();
                         let bpl2 = pl2.borrow();
-                        tools::check_collision(&bpl1, &bpl2)
+                        (tools::check_collision(&bpl1, &bpl2), bpl1.has_spawn_protection() || bpl2.has_spawn_protection())
                     };
     
-                    if colliding {
+                    // Check for collision even if they have spawn protection, since I do not want to apply grav
+                    // force when planets are inside of each other (as they become very speedy).
+                    // protection is true if either planets have spawn protection
+                    if colliding && !protection {
+                        println!("Protection: {}", protection);
                         Self::put_in_collision_group(&mut collision_groups, *keys[i], *keys[j]);
-                    } else {
+                    } else if !colliding {
                         tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut());
                     }
                 }
@@ -380,7 +387,7 @@ impl event::EventHandler for MainState {
     
             // Update planets
             for (_, pl) in self.planets.iter() {
-                pl.borrow_mut().update(dt);
+                pl.borrow_mut().update(dt, &dt_duration);
             }
         }
 
@@ -451,7 +458,13 @@ impl event::EventHandler for MainState {
         self.mouse_info.down = false;
 
         if button == MouseButton::Left {
-            self.add_planet(self.mouse_info.down_pos, Some(self.mouse_info.down_pos - Point2::new(x, y)), None, SPAWN_PLANET_RADIUS);
+            self.add_planet(
+                self.mouse_info.down_pos,
+                Some(self.mouse_info.down_pos - Point2::new(x, y)),
+                None,
+                SPAWN_PLANET_RADIUS,
+                Some(Duration::new(1, 0)),
+            );
         }
     }
 
