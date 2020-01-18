@@ -1,6 +1,5 @@
 mod tools;
 mod planet;
-mod emitters;
 
 use ggez::event::{self, KeyCode, KeyMods};
 use ggez::graphics::{self, DrawParam, Mesh, MeshBuilder};
@@ -17,8 +16,7 @@ use std::cell::RefCell;
 use std::time::Duration;
 use std::f32::consts::PI;
 
-use planet::Planet;
-use emitters::{Emitter, ParticleSystem, ParticleSystemParam};
+use planet::{Planet, PlanetTrail};
 
 pub const G: f32 = 0.0001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
@@ -29,7 +27,7 @@ const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
 struct MainState {
     planet_id_count: usize,
     planets: HashMap<usize, RefCell<Planet>>,
-    planet_trails: HashMap<usize, ParticleSystem>,
+    planet_trails: HashMap<usize, PlanetTrail>,
     mouse_info: MouseInfo,
     rand_thread: ThreadRng,
 
@@ -52,7 +50,8 @@ impl MainState {
         //     Point2::new(640.0, 360.0),
         //     None,
         //     None,
-        //     50.0
+        //     50.0,
+        //     None,
         // );
 
         // const GAP: f32 = 20.0;
@@ -76,9 +75,9 @@ impl MainState {
             None,
             None,
             50.0,
-            1000,
+            700,
             (15.0, 100.0),
-            (0.2, 1.0),
+            (0.5, 1.5),
             true,
         );
 
@@ -146,7 +145,7 @@ impl MainState {
 
         self.planet_trails.insert(
             self.planet_id_count,
-            ParticleSystem::new(planet.position, ParticleSystemParam::planet_trail())
+            PlanetTrail::new(planet.position)
         );
 
         self.planets.insert(
@@ -162,20 +161,17 @@ impl MainState {
         if self.planets.remove(&id).is_none() {
             println!("WARNING: Tried to remove planet {} but it wasn't in the hashmap.", id);
         }
-        if let Some(trail) = self.planet_trails.get_mut(&id) {
-            trail.stop_emitting();
-        }
     }
 
     #[inline]
     fn draw_debug_info(&self, ctx: &mut Context) -> GameResult {
         let text = graphics::Text::new(
             format!(
-                "{:.3}\nBodies: {}\nPlanet Trails: {}\nParticle Count: {}",
+                "{:.3}\nBodies: {}\nPlanet Trails: {}\nTrail Node Count: {}",
                 timer::fps(ctx),
                 self.planets.len(),
                 self.planet_trails.len(),
-                self.particle_count(),
+                self.node_count(),
             )
         );
         graphics::draw(
@@ -198,10 +194,10 @@ impl MainState {
                 graphics::draw(ctx, &vel_line, DrawParam::default())?;
             }
 
-            if forces && planet_borrow.last_resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
+            if forces && planet_borrow.resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
                 let force_line = graphics::Mesh::new_line(
                     ctx,
-                    &[planet_borrow.position, planet_borrow.position + planet_borrow.last_resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
+                    &[planet_borrow.position, planet_borrow.position + planet_borrow.resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
                     1.0,
                     [1.0, 0.0, 0.0, 1.0].into()
                 )?;
@@ -225,18 +221,18 @@ impl MainState {
     }
 
         #[inline]
-    fn collide_planets(&self, planets: &HashSet<usize>) -> Planet {  // Returns new planet that is sum of other two.
+    fn collide_planets(&mut self, planets: &HashSet<usize>) -> Planet {  // Returns new planet that is sum of other two.
         // Conservation of momentum
         let mut total_mass = 0.0;
         let mut total_volume = 0.0;
-        let mut inital_momentum = Vector2::new(0.0, 0.0);
+        let mut total_momentum = Vector2::new(0.0, 0.0);
         let mut sum_of_rm = Point2::new(0.0, 0.0);      // Centre of mass of system is this divided by total mass of all bodies
 
         for id in planets.iter().filter(|id| self.planets.contains_key(id)) {
             let p = self.planets.get(id).expect(&format!("Planet {} not in hashmap.", id)).borrow();
             total_mass += p.mass;
             total_volume += tools::volume_of_sphere(p.radius);
-            inital_momentum += p.mass * p.velocity;
+            total_momentum += p.mass * p.velocity;
 
             sum_of_rm.x += p.position.x * p.mass;
             sum_of_rm.y += p.position.y * p.mass;
@@ -246,8 +242,13 @@ impl MainState {
         // Use centre of mass as new position
         let new_position = sum_of_rm/total_mass;
 
+        // Connect ends of trails
+        for (_, trail) in self.planet_trails.iter_mut().filter(|(id, _)| planets.contains(id)) {
+            trail.add_node(new_position);
+        }
+
         // ID is set to 0, and is then changed afterwards.
-        Planet::new(0, new_position, Some(inital_momentum/total_mass), Some(total_mass), new_radius, None)
+        Planet::new(0, new_position, Some(total_momentum/total_mass), Some(total_mass), new_radius, None)
     }
 
     fn spawn_square_of_planets(
@@ -271,25 +272,23 @@ impl MainState {
         }
     }
 
-    fn update_planet_trails(&mut self, dt: f32, dt_duration: &Duration) {
+    fn update_planet_trails(&mut self, dt_duration: &Duration) {
         for (id, trail) in self.planet_trails.iter_mut() {
             trail.update(
-                dt,
                 dt_duration,
                 if let Some(planet) = self.planets.get(&id) {
                     Some(planet.borrow().position)
                 } else {
                     None
                 },
-                &mut self.rand_thread,
             );
         }
     }
 
-    fn particle_count(&self) -> usize {
+    fn node_count(&self) -> usize {
         let mut total = 0;
         for (_, trail) in self.planet_trails.iter() {
-            total += trail.particle_count();
+            total += trail.node_count();
         }
 
         total
@@ -361,6 +360,11 @@ impl event::EventHandler for MainState {
         let len = self.planets.len();
 
         if len > 0 {
+            // Update planets
+            for (_, pl) in self.planets.iter() {
+                pl.borrow_mut().update(dt, &dt_duration);
+            }
+
             for i in 0..len-1 {
                 let pl1 = self.planets.get(keys[i]).expect("Couldn't get planet 1");
                 for j in i+1..len {
@@ -375,7 +379,6 @@ impl event::EventHandler for MainState {
                     // force when planets are inside of each other (as they become very speedy).
                     // protection is true if either planets have spawn protection
                     if colliding && !protection {
-                        println!("Protection: {}", protection);
                         Self::put_in_collision_group(&mut collision_groups, *keys[i], *keys[j]);
                     } else if !colliding {
                         tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut());
@@ -384,15 +387,10 @@ impl event::EventHandler for MainState {
             }
 
             self.resolve_collisions(&collision_groups);
-    
-            // Update planets
-            for (_, pl) in self.planets.iter() {
-                pl.borrow_mut().update(dt, &dt_duration);
-            }
         }
 
         // Update trails
-        self.update_planet_trails(dt, &dt_duration);
+        self.update_planet_trails(&dt_duration);
 
         Ok(())
     }
@@ -410,19 +408,19 @@ impl event::EventHandler for MainState {
 
         // Draw particles
         {
-            let mut particles_mesh_builder = MeshBuilder::new();
-            let mut are_particles = false;
+            let mut lines_mesh_builder = MeshBuilder::new();
+            let mut are_lines = false;
     
             for (_, trail) in self.planet_trails.iter() {
-                trail.draw(&mut particles_mesh_builder);
-                if !are_particles && trail.particle_count() > 0 {
-                    are_particles = true;
+                trail.draw(&mut lines_mesh_builder)?;
+                if !are_lines && trail.node_count() > 1 {
+                    are_lines = true;
                 }
             }
             
-            if are_particles {     // Prevents lyon error when building mesh
-                let particles_mesh = particles_mesh_builder.build(ctx)?;
-                graphics::draw(ctx, &particles_mesh, DrawParam::default())?;
+            if are_lines {     // Prevents lyon error when building mesh
+                let line_mesh = lines_mesh_builder.build(ctx)?;
+                graphics::draw(ctx, &line_mesh, DrawParam::default())?;
             }
         }
 
@@ -463,7 +461,7 @@ impl event::EventHandler for MainState {
                 Some(self.mouse_info.down_pos - Point2::new(x, y)),
                 None,
                 SPAWN_PLANET_RADIUS,
-                Some(Duration::new(1, 0)),
+                None,
             );
         }
     }
