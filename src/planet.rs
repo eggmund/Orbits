@@ -131,7 +131,7 @@ impl PlanetTrail {
                 mesh.line(
                     &[self.nodes[i].pos, self.nodes[i + 1].pos],
                     1.0,
-                    [0.1, 0.4, 0.8, alpha/6.0].into()
+                    [0.1, 0.4, 0.8, alpha/4.0].into()
                 )?;
             }
         }
