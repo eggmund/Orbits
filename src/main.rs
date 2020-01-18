@@ -69,17 +69,7 @@ impl MainState {
         //     None,
         //     5.0
         // );
-
-        s.add_planet_with_moons(
-            Point2::new(640.0, 430.0),
-            None,
-            None,
-            50.0,
-            700,
-            (15.0, 100.0),
-            (0.5, 1.5),
-            true,
-        );
+        s.restart();
 
         Ok(s)
     }
@@ -340,6 +330,22 @@ impl MainState {
             self.add_planet_raw(planet);
         }
     }
+
+    fn restart(&mut self) {
+        self.planets = HashMap::new();
+
+        self.add_planet_with_moons(
+            Point2::new(640.0, 430.0),
+            None,
+            None,
+            50.0,
+            4000,
+            (15.0, 400.0),
+            (0.5, 1.5),
+            true,
+        );
+    }
+
 }
 
 impl event::EventHandler for MainState {
@@ -480,6 +486,7 @@ impl event::EventHandler for MainState {
     ) {
         match keycode {
             KeyCode::D => self.show_vector_debug = !self.show_vector_debug,
+            KeyCode::R => self.restart(),
             _ => (),
         }
     }
