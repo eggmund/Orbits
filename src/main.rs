@@ -74,6 +74,29 @@ impl MainState {
         Ok(s)
     }
 
+    fn restart(&mut self) {
+        self.planets = HashMap::new();
+
+        // self.add_planet_with_moons(
+        //     Point2::new(640.0, 430.0),
+        //     None,
+        //     None,
+        //     50.0,
+        //     700,
+        //     (15.0, 100.0),
+        //     (0.5, 1.5),
+        //     true,
+        // );
+
+        self.add_random_planets(
+            100,
+            (0.0, SCREEN_DIMS.0),
+            (0.0, SCREEN_DIMS.1),
+            (1.0, 8.0),
+            None,
+        );
+    }
+
     #[inline]
     fn add_planet(&mut self, position: Point2<f32>, velocity: Option<Vector2<f32>>, mass: Option<f32>, radius: f32, spawn_protection: Option<Duration>) {
         self.add_planet_raw(Planet::new(
@@ -144,6 +167,38 @@ impl MainState {
         );
 
         self.planet_id_count += 1;
+    }
+
+    #[inline]
+    fn add_random_planets(&mut self, n: usize, x_range: (f32, f32), y_range: (f32, f32), radius_range: (f32, f32), speed_range: Option<(f32, f32)>) {
+        assert!(x_range.1 > x_range.0);
+        assert!(y_range.1 > y_range.0);
+        assert!(radius_range.1 > radius_range.0);
+        assert!(n > 0);
+
+        for _ in 0..n {
+            let x_pos = self.rand_thread.gen_range(x_range.0, x_range.1);
+            let y_pos = self.rand_thread.gen_range(y_range.0, y_range.1);
+            let radius = self.rand_thread.gen_range(radius_range.0, radius_range.1);
+
+            let velocity = if let Some(speed_range) = speed_range {
+                assert!(speed_range.1 > speed_range.0);
+
+                let speed = self.rand_thread.gen_range(speed_range.0, speed_range.1);
+                let angle = self.rand_thread.gen_range(0.0, TWO_PI);
+                Some(tools::get_components(speed, angle))
+            } else {
+                None
+            };
+
+            self.add_planet(
+                Point2::new(x_pos, y_pos),
+                velocity,
+                None,
+                radius,
+                None,
+            );
+        }
     }
 
     #[inline]
@@ -330,22 +385,6 @@ impl MainState {
             self.add_planet_raw(planet);
         }
     }
-
-    fn restart(&mut self) {
-        self.planets = HashMap::new();
-
-        self.add_planet_with_moons(
-            Point2::new(640.0, 430.0),
-            None,
-            None,
-            50.0,
-            4000,
-            (15.0, 400.0),
-            (0.5, 1.5),
-            true,
-        );
-    }
-
 }
 
 impl event::EventHandler for MainState {

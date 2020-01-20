@@ -92,6 +92,7 @@ const PLANET_TRAIL_NODE_LIFETIME: u64 = 1000;
 pub struct PlanetTrail {
     nodes: VecDeque<PlanetTrailNode>,
     node_placement_timer: Duration,
+    has_parent: bool,
 }
 
 impl PlanetTrail {
@@ -102,6 +103,7 @@ impl PlanetTrail {
         Self {
             nodes,
             node_placement_timer: Duration::new(0, 0),
+            has_parent: true,
         }
     }
 
@@ -109,6 +111,7 @@ impl PlanetTrail {
         self.kill_dead_nodes();
 
         if let Some(parent_pos) = parent_pos {
+            self.has_parent = true;
             self.node_placement_timer += *dt_duration;
 
             let period = Duration::from_millis(PLANET_TRAIL_NODE_PLACEMENT_PERIOD);
@@ -117,6 +120,8 @@ impl PlanetTrail {
                 self.add_node(parent_pos);
                 self.node_placement_timer -= period;
             }
+        } else {
+            self.has_parent = false;
         }
     }
 
@@ -157,7 +162,7 @@ impl PlanetTrail {
 
     #[inline]
     pub fn is_dead(&self) -> bool {
-        self.nodes.is_empty()
+        self.nodes.is_empty() && !self.has_parent
     }
 
     #[inline]
