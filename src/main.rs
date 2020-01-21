@@ -22,7 +22,7 @@ pub const G: f32 = 0.0001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 10.0;
 const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.00005;
-const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
+pub const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
 
 struct MainState {
     planet_id_count: usize,
@@ -88,12 +88,13 @@ impl MainState {
         //     true,
         // );
 
+        const DIV: f32 = 100.0;
         self.add_random_planets(
-            100,
-            (0.0, SCREEN_DIMS.0),
-            (0.0, SCREEN_DIMS.1),
-            (1.0, 8.0),
-            None,
+            500,
+            (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
+            (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
+            (3.0, 8.0),
+            Some((100.0, 1000.0)),
         );
     }
 
@@ -454,16 +455,15 @@ impl event::EventHandler for MainState {
         // Draw particles
         {
             let mut lines_mesh_builder = MeshBuilder::new();
-            let mut are_lines = false;
+            let mut can_draw = false;
     
             for (_, trail) in self.planet_trails.iter() {
-                trail.draw(&mut lines_mesh_builder)?;
-                if !are_lines && trail.node_count() > 1 {
-                    are_lines = true;
+                if trail.draw(&mut lines_mesh_builder)? && !can_draw {
+                    can_draw = true;
                 }
             }
             
-            if are_lines {     // Prevents lyon error when building mesh
+            if can_draw {     // Prevents lyon error when building mesh
                 let line_mesh = lines_mesh_builder.build(ctx)?;
                 graphics::draw(ctx, &line_mesh, DrawParam::default())?;
             }

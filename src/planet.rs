@@ -8,9 +8,11 @@ use std::time::{Duration, Instant};
 use std::collections::VecDeque;
 
 use crate::tools;
+use crate::SCREEN_DIMS;
 
 pub const PLANET_DENSITY: f32 = 5000.0;
 const PLANET_RADIUS_COLORING_LOOP: f32 = 5.0;  // Planets are rainbow and colour repeats every 10
+const TELEPORT_ON_EDGES: bool = true;       // When edge of window is reached, teleport to other side.
 
 pub struct Planet {
     pub id: usize,
@@ -45,6 +47,19 @@ impl Planet {
         let acceleration = self.resultant_force/self.mass;  // F = ma, F/m = a
         self.velocity += acceleration * dt;
         self.position += self.velocity * dt;
+
+        if TELEPORT_ON_EDGES {
+            if self.position.x < 0.0 {
+                self.position.x = SCREEN_DIMS.0;
+            } else if self.position.x > SCREEN_DIMS.0 {
+                self.position.x = 0.0;
+            }
+            if self.position.y < 0.0 {
+                self.position.y = SCREEN_DIMS.1;
+            } else if self.position.y > SCREEN_DIMS.1 {
+                self.position.y = 0.0;
+            }
+        }
         
         self.resultant_force = Vector2::new(0.0, 0.0);
 
@@ -125,23 +140,28 @@ impl PlanetTrail {
         }
     }
 
-    pub fn draw(&self, mesh: &mut MeshBuilder) -> GameResult {
+    pub fn draw(&self, mesh: &mut MeshBuilder) -> GameResult<bool> {    // Returns if any line segments drawn
         let len = self.node_count();
+        let mut draw_segments = 0;
         if len > 1 {
             for i in 0..len-1 {
-                // Connect points
-                let alpha = (1.0 - timer::duration_to_f64(Instant::now().duration_since(self.nodes[i].time_created)) as f32/timer::duration_to_f64(Duration::from_millis(PLANET_TRAIL_NODE_LIFETIME)) as f32).max(0.0).powi(2);
-                //println!("Building line: {:?}, {:?}", self.nodes[i].pos, self.nodes[i + 1].pos);
-
-                mesh.line(
-                    &[self.nodes[i].pos, self.nodes[i + 1].pos],
-                    1.0,
-                    [0.1, 0.4, 0.8, alpha/4.0].into()
-                )?;
+                if (self.nodes[i].pos.x - self.nodes[i + 1].pos.x).powi(2) +
+                    (self.nodes[i].pos.y - self.nodes[i + 1].pos.y).powi(2) <
+                    (SCREEN_DIMS.0.min(SCREEN_DIMS.1)/2.0).powi(2)  // Make sure line length is less than half the minimum screen dimensions.
+                {
+                    draw_segments += 1;
+                    let alpha = (1.0 - timer::duration_to_f64(Instant::now().duration_since(self.nodes[i].time_created)) as f32/timer::duration_to_f64(Duration::from_millis(PLANET_TRAIL_NODE_LIFETIME)) as f32).max(0.0).powi(2);
+    
+                    mesh.line(
+                        &[self.nodes[i].pos, self.nodes[i + 1].pos],
+                        1.0,
+                        [0.1, 0.4, 0.8, alpha/4.0].into()
+                    )?;
+                }
             }
         }
 
-        Ok(())
+        Ok(draw_segments > 0)
     }
 
     #[inline]
