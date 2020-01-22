@@ -25,26 +25,18 @@ pub fn get_components(magnitude: f32, angle: f32) -> Vector2<f32> {
     Vector2::new(magnitude * angle.cos(), magnitude * angle.sin())
 }
 
+// F = (GMm/|r|^2) * r_norm
+//   = (GMm/|r|^2) * r * 1/|r|
+//   = (GMm/|r|^3) * r
 #[inline]
 pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet) {
     let dist_vec = pl2.position - pl1.position;
-    let angle = get_angle(dist_vec);
+    let dist_cubed = (dist_vec.x.powi(2) + dist_vec.y.powi(2)).sqrt().powi(3);
 
-    let dist_squared = dist_vec.x.powi(2) + dist_vec.y.powi(2);
-
-    let force = (G * pl1.mass * pl2.mass)/dist_squared;
-    let force_vec = get_components(force, angle);
+    let force_vec = dist_vec * ((G * pl1.mass * pl2.mass)/dist_cubed);
 
     pl1.resultant_force += force_vec;
     pl2.resultant_force -= force_vec;
-}
-
-// Box collision for circles (AABB), and then circle collision
-#[inline]
-pub fn check_collision(planet1: &Planet, planet2: &Planet) -> bool {
-    let min_dist = planet1.radius + planet2.radius;
-    let dist_vec = planet2.position - planet1.position;
-    dist_vec.x.abs() <= min_dist && dist_vec.y.abs() <= min_dist && dist_vec.x.powi(2) + dist_vec.y.powi(2) <= min_dist.powi(2)
 }
 
 #[inline]

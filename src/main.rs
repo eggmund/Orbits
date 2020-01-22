@@ -418,10 +418,20 @@ impl event::EventHandler for MainState {
                 let pl1 = self.planets.get(keys[i]).expect("Couldn't get planet 1");
                 for j in i+1..len {
                     let pl2 = self.planets.get(keys[j]).expect("Couldn't get planet 2");
-                    let (colliding, protection) = {
+
+                    let (colliding, dist_vec, square_distance, protection) = {
                         let bpl1 = pl1.borrow();
                         let bpl2 = pl2.borrow();
-                        (tools::check_collision(&bpl1, &bpl2), bpl1.has_spawn_protection() || bpl2.has_spawn_protection())
+                        let dist_vec = bpl2.position - bpl1.position;
+                        let min_dist = bpl1.radius + bpl2.radius;
+                        let square_dist = dist_vec.x.powi(2) + dist_vec.y.powi(2);
+                        (
+                            // AABB then circle collision
+                            dist_vec.x.abs() <= min_dist && dist_vec.y.abs() <= min_dist && square_dist <= min_dist.powi(2),
+                            dist_vec,
+                            square_dist,
+                            bpl1.has_spawn_protection() || bpl2.has_spawn_protection()
+                        )
                     };
     
                     // Check for collision even if they have spawn protection, since I do not want to apply grav
