@@ -22,12 +22,12 @@ pub const G: f32 = 0.0001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 10.0;
 const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.00005;
-pub const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
+pub const SCREEN_DIMS: (f32, f32) = (1280.0, 720.0);
 
 struct MainState {
     planet_id_count: usize,
     planets: HashMap<usize, RefCell<Planet>>,
-    planet_trails: HashMap<usize, PlanetTrail>,
+    planet_trails: HashMap<usize, RefCell<PlanetTrail>>,
     mouse_info: MouseInfo,
     rand_thread: ThreadRng,
 
@@ -75,27 +75,31 @@ impl MainState {
     }
 
     fn restart(&mut self) {
-        self.planets = HashMap::new();
-
-        // self.add_planet_with_moons(
-        //     Point2::new(640.0, 430.0),
-        //     None,
-        //     None,
-        //     50.0,
-        //     700,
-        //     (15.0, 100.0),
-        //     (0.5, 1.5),
-        //     true,
-        // );
-
-        const DIV: f32 = 100.0;
-        self.add_random_planets(
+        self.clear();
+        self.add_planet_with_moons(
+            Point2::new(640.0, 430.0),
+            None,
+            None,
+            50.0,
             500,
-            (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
-            (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
-            (3.0, 8.0),
-            Some((100.0, 1000.0)),
+            (15.0, 100.0),
+            (0.5, 1.5),
+            true,
         );
+
+        // const DIV: f32 = 100.0;
+        // self.add_random_planets(
+        //     1000,
+        //     (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
+        //     (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
+        //     (0.5, 1.5),
+        //     Some((1000.0, 10000.0)),
+        // );
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.planets = HashMap::new();
     }
 
     #[inline]
@@ -159,7 +163,7 @@ impl MainState {
 
         self.planet_trails.insert(
             self.planet_id_count,
-            PlanetTrail::new(planet.position)
+            RefCell::new(PlanetTrail::new(planet.position))
         );
 
         self.planets.insert(
@@ -276,22 +280,21 @@ impl MainState {
 
         for id in planets.iter().filter(|id| self.planets.contains_key(id)) {
             let p = self.planets.get(id).expect(&format!("Planet {} not in hashmap.", id)).borrow();
-            total_mass += p.mass;
+            total_mass += p.mass; 
             total_volume += tools::volume_of_sphere(p.radius);
             total_momentum += p.mass * p.velocity;
 
             sum_of_rm.x += p.position.x * p.mass;
             sum_of_rm.y += p.position.y * p.mass;
+
+            // Make end of trail
+            let mut trail = self.planet_trails.get(id).expect(&format!("Could not get trail for planet {}.", id)).borrow_mut();
+            trail.add_node(p.position);
         }
 
         let new_radius = tools::inverse_volume_of_sphere(total_volume);
         // Use centre of mass as new position
         let new_position = sum_of_rm/total_mass;
-
-        // Connect ends of trails
-        for (_, trail) in self.planet_trails.iter_mut().filter(|(id, _)| planets.contains(id)) {
-            trail.add_node(new_position);
-        }
 
         // ID is set to 0, and is then changed afterwards.
         Planet::new(0, new_position, Some(total_momentum/total_mass), Some(total_mass), new_radius, None)
@@ -320,7 +323,7 @@ impl MainState {
 
     fn update_planet_trails(&mut self, dt_duration: &Duration) {
         for (id, trail) in self.planet_trails.iter_mut() {
-            trail.update(
+            trail.borrow_mut().update(
                 dt_duration,
                 if let Some(planet) = self.planets.get(&id) {
                     Some(planet.borrow().position)
@@ -334,7 +337,7 @@ impl MainState {
     fn node_count(&self) -> usize {
         let mut total = 0;
         for (_, trail) in self.planet_trails.iter() {
-            total += trail.node_count();
+            total += trail.borrow().node_count();
         }
 
         total
@@ -400,7 +403,7 @@ impl event::EventHandler for MainState {
         let mut collision_groups: Vec<HashSet<usize>> = Vec::with_capacity(self.planets.len()/2);
 
         // Remove dead particle emitters
-        self.planet_trails.retain(|_, trail| !trail.is_dead());
+        self.planet_trails.retain(|_, trail| !trail.borrow().is_dead());
 
         let keys: Vec<&usize> = self.planets.keys().collect();
         let len = self.planets.len();
@@ -458,7 +461,7 @@ impl event::EventHandler for MainState {
             let mut can_draw = false;
     
             for (_, trail) in self.planet_trails.iter() {
-                if trail.draw(&mut lines_mesh_builder)? && !can_draw {
+                if trail.borrow().draw(&mut lines_mesh_builder)? && !can_draw {
                     can_draw = true;
                 }
             }
@@ -526,6 +529,7 @@ impl event::EventHandler for MainState {
         match keycode {
             KeyCode::D => self.show_vector_debug = !self.show_vector_debug,
             KeyCode::R => self.restart(),
+            KeyCode::C => self.clear(),
             _ => (),
         }
     }
