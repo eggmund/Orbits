@@ -20,9 +20,10 @@ use planet::{Planet, PlanetTrail};
 
 pub const G: f32 = 0.0001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
-const SPAWN_PLANET_RADIUS: f32 = 10.0;
-const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.00005;
-pub const SCREEN_DIMS: (f32, f32) = (1280.0, 720.0);
+const SPAWN_PLANET_RADIUS: f32 = 5.0;
+const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.00001;
+pub const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
+const TELEPORT_ON_EDGES: bool = false;       // When edge of window is reached, teleport to other side.
 
 struct MainState {
     planet_id_count: usize,
@@ -46,29 +47,6 @@ impl MainState {
             show_vector_debug: false,
         };
 
-        // s.add_planet(
-        //     Point2::new(640.0, 360.0),
-        //     None,
-        //     None,
-        //     50.0,
-        //     None,
-        // );
-
-        // const GAP: f32 = 20.0;
-        // s.spawn_square_of_planets(
-        //     Point2::new(GAP/2.0, GAP/2.0),
-        //     (SCREEN_DIMS.0/GAP).ceil() as u16,
-        //     (SCREEN_DIMS.1/GAP).ceil() as u16,
-        //     GAP,
-        //     1.0,
-        // );
-
-        // s.add_planet(
-        //     Point2::new(750.0, 360.0),
-        //     Some(Vector2::new(0.0, 50.0)),
-        //     None,
-        //     5.0
-        // );
         s.restart();
 
         Ok(s)
@@ -76,8 +54,38 @@ impl MainState {
 
     fn restart(&mut self) {
         self.clear();
+        // const GAP: f32 = 20.0;
+        // self.spawn_square_of_planets(
+        //     Point2::new(GAP/2.0, GAP/2.0),
+        //     (SCREEN_DIMS.0/GAP).ceil() as u16,
+        //     (SCREEN_DIMS.1/GAP).ceil() as u16,
+        //     GAP,
+        //     1.0,
+        // );
+
+        // self.add_planet_with_moons(
+        //     Point2::new(640.0, 430.0),
+        //     None,
+        //     None,
+        //     50.0,
+        //     700,
+        //     (15.0, 100.0),
+        //     (0.5, 1.5),
+        //     true,
+        // );
+
         self.add_planet_with_moons(
-            Point2::new(640.0, 430.0),
+            Point2::new(320.0, 430.0),
+            None,
+            None,
+            50.0,
+            500,
+            (15.0, 100.0),
+            (0.5, 1.5),
+            true,
+        );
+        self.add_planet_with_moons(
+            Point2::new(960.0, 430.0),
             None,
             None,
             50.0,
@@ -92,8 +100,8 @@ impl MainState {
         //     1000,
         //     (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
         //     (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
-        //     (0.5, 1.5),
-        //     Some((1000.0, 10000.0)),
+        //     (0.2, 1.0),
+        //     Some((500.0, 1000.0)),
         // );
     }
 
@@ -291,7 +299,7 @@ impl MainState {
             let mut trail = self.planet_trails.get(id).expect(&format!("Could not get trail for planet {}.", id)).borrow_mut();
             trail.add_node(p.position);
         }
-
+        
         let new_radius = tools::inverse_volume_of_sphere(total_volume);
         // Use centre of mass as new position
         let new_position = sum_of_rm/total_mass;
@@ -440,7 +448,7 @@ impl event::EventHandler for MainState {
                     if colliding && !protection {
                         Self::put_in_collision_group(&mut collision_groups, *keys[i], *keys[j]);
                     } else if !colliding {
-                        tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut());
+                        tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut(), square_distance, dist_vec);
                     }
                 }
             }

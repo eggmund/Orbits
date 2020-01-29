@@ -29,11 +29,8 @@ pub fn get_components(magnitude: f32, angle: f32) -> Vector2<f32> {
 //   = (GMm/|r|^2) * r * 1/|r|
 //   = (GMm/|r|^3) * r
 #[inline]
-pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet) {
-    let dist_vec = pl2.position - pl1.position;
-    let dist_cubed = (dist_vec.x.powi(2) + dist_vec.y.powi(2)).sqrt().powi(3);
-
-    let force_vec = dist_vec * ((G * pl1.mass * pl2.mass)/dist_cubed);
+pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet, dist_squared: f32, dist_vec: Vector2<f32>) {
+    let force_vec = dist_vec * (G * pl1.mass * pl2.mass/dist_squared.sqrt().powi(3));
 
     pl1.resultant_force += force_vec;
     pl2.resultant_force -= force_vec;

@@ -8,11 +8,10 @@ use std::time::{Duration, Instant};
 use std::collections::VecDeque;
 
 use crate::tools;
-use crate::SCREEN_DIMS;
+use crate::{SCREEN_DIMS, TELEPORT_ON_EDGES};
 
 pub const PLANET_DENSITY: f32 = 5000.0;
 const PLANET_RADIUS_COLORING_LOOP: f32 = 5.0;  // Planets are rainbow and colour repeats every 10
-const TELEPORT_ON_EDGES: bool = true;       // When edge of window is reached, teleport to other side.
 
 pub struct Planet {
     pub id: usize,
@@ -49,15 +48,15 @@ impl Planet {
         self.position += self.velocity * dt;
 
         if TELEPORT_ON_EDGES {
-            if self.position.x < 0.0 {
-                self.position.x = SCREEN_DIMS.0;
-            } else if self.position.x > SCREEN_DIMS.0 {
-                self.position.x = 0.0;
+            if self.position.x < -self.radius {
+                self.position.x = SCREEN_DIMS.0 + self.radius;
+            } else if self.position.x > SCREEN_DIMS.0 + self.radius {
+                self.position.x = -self.radius;
             }
-            if self.position.y < 0.0 {
-                self.position.y = SCREEN_DIMS.1;
-            } else if self.position.y > SCREEN_DIMS.1 {
-                self.position.y = 0.0;
+            if self.position.y < -self.radius {
+                self.position.y = SCREEN_DIMS.1 + self.radius;
+            } else if self.position.y > SCREEN_DIMS.1 + self.radius {
+                self.position.y = -self.radius;
             }
         }
         
@@ -101,8 +100,8 @@ impl Planet {
     }
 }
 
-const PLANET_TRAIL_NODE_PLACEMENT_PERIOD: u64 = 32;
-const PLANET_TRAIL_NODE_LIFETIME: u64 = 1000;
+const PLANET_TRAIL_NODE_PLACEMENT_PERIOD: u64 = 20;
+const PLANET_TRAIL_NODE_LIFETIME: u64 = 700;
 
 pub struct PlanetTrail {
     nodes: VecDeque<PlanetTrailNode>,
@@ -112,7 +111,7 @@ pub struct PlanetTrail {
 
 impl PlanetTrail {
     pub fn new(start_pos: Point2<f32>) -> Self {
-        let mut nodes = VecDeque::with_capacity(32);
+        let mut nodes = VecDeque::with_capacity(36);
         nodes.push_front(PlanetTrailNode::from(start_pos));
 
         Self {
