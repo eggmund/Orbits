@@ -255,21 +255,56 @@ impl MainState {
     }
 
         #[inline]
-    fn collide_planets(pl1: &mut Planet, pl2: &Planet, rand_thread: &mut ThreadRng) -> Vec<Planets> {  // Makes pl1 the new planet, and returns vector of debris
-        fn add_debris(total_mass: &mut f32, rand_thread: &mut ThreadRng) {  // Decrements total_mass 
-            const MIN_MASS_FACTOR: f32 = 0.6;       // How much mass should remain after debris
+    fn collide_planets(pl1: &mut Planet, pl2: &Planet, rand_thread: &mut ThreadRng) -> Vec<Planet> {  // Makes pl1 the new planet, and returns vector of debris
+        fn get_debris(pl1: &mut Planet, pl2: &Planet, total_mass: &mut f32, total_momentum: &mut Vector2<f32>, rand_thread: &mut ThreadRng) -> Vec<Planet> {  // Decrements total_mass 
+            // How much mass should remain after debris.
+            // Number from 1 -> MIN_MASS_FACTOR depending on velocity of impact.
+            const MIN_MASS_FACTOR: f32 = 0.6;
+            const DEBRIS_EMISSION_ANGLE_DEVIATION: f32 = PI/4.0;   // Angle deviation each side of the emission line
+            const DEBRIS_SPEED_RANGE: (f32, f32) = (10.0, 100.0);
+            const DEBRIS_MIN_MASS: f32 = 4.0/3.0 * PI * 4.0 * PLANET_DENSITY;
+            const DEBRIS_MAX_MASS_FACTOR: f32 = 0.2;
 
-            let heading = (pl2.position - pl1.position).normalize_mut();    // Unit vector from pl1 to pl2
+            let mut debris: Vec<Planet> = Vec::new();
+
+            let heading = (pl2.position - pl1.position).normalize();    // Unit vector from pl1 to pl2
+            let point_of_collision = Point2::new(pl1.position.x + heading.x * pl1.radius, pl2.position.y + heading.y * pl1.radius);   // Point of collision will be the heading vector multiplied by radius of pl1
             let collision_vel = pl2.velocity - pl1.velocity;
-            let cross = heading.cross(collision_vel.normalize());   // From 0 -> 1, 
+            // From -1 -> 1, where = 0 means it is a head on collision
+            let cross_magnitude = tools::cross_2d(&heading, &collision_vel.normalize());
 
+            let debris_emission_line_angle = tools::get_angle(heading) + (PI * (cross_magnitude - 0.5));
+            let final_body_mass = *total_mass * MIN_MASS_FACTOR;
+            let debris_mass_range: (f32, f32) = (DEBRIS_MIN_MASS, 4.0/3.0 * PI * final_body_mass * DEBRIS_MAX_MASS_FACTOR);
+
+            while *total_mass > final_body_mass {
+                let speed = rand_thread.gen_range(DEBRIS_SPEED_RANGE.0, DEBRIS_SPEED_RANGE.1);
+                let rel_velocity = tools::get_components(speed, debris_emission_line_angle + rand_thread.gen_range(-DEBRIS_EMISSION_ANGLE_DEVIATION, DEBRIS_EMISSION_ANGLE_DEVIATION));
+                let mass = rand_thread.gen_range(debris_mass_range.0, debris_mass_range.1);
+                let radius = tools::inverse_volume_of_sphere(mass/PLANET_DENSITY);
+                let vel = collision_vel + rel_velocity;
+
+                debris.push(Planet::new(
+                    0,  // Will be changed
+                    point_of_collision,
+                    Some(vel),
+                    Some(mass),
+                    radius,
+                    Some(Duration::new(2, 0)),
+                ));
+
+                *total_mass -= mass;
+                *total_momentum -= vel * mass;
+            }
+            debris
         }
 
         // Conservation of momentum
         let mut total_mass = pl1.mass + pl2.mass;
-        let total_momentum = pl1.mass * pl1.velocity + pl2.mass * pl2.velocity;
+        let mut total_momentum = pl1.mass * pl1.velocity + pl2.mass * pl2.velocity;
 
-
+        // Get debris
+        let debris = get_debris(pl1, pl2, &mut total_mass, &mut total_momentum, rand_thread);
 
         pl1.radius = tools::inverse_volume_of_sphere(total_mass/PLANET_DENSITY);
         // Use centre of mass as new position
@@ -280,6 +315,8 @@ impl MainState {
         pl1.velocity = total_momentum/total_mass;   // Inelastic collision
         pl1.mass = total_mass;
         pl1.update_color(); // Will have changed colour due to increase in mass
+
+        debris
     }
 
     fn spawn_square_of_planets(
@@ -332,6 +369,7 @@ impl event::EventHandler for MainState {
         let dt = timer::duration_to_f64(dt_duration) as f32;
 
         let mut collided_planets: Vec<usize> = Vec::with_capacity(self.planets.len()/2);
+        let mut new_debris: Vec<Planet> = Vec::new();
         
         // Remove dead particle emitters
         self.planet_trails.retain(|_, trail| !trail.borrow().is_dead());
@@ -373,8 +411,9 @@ impl event::EventHandler for MainState {
                             // force when planets are inside of each other (as they become very speedy).
                             // protection is true if either planets have spawn protection
                             if colliding && !protection {
-                                Self::collide_planets(&mut pl1.borrow_mut(), &pl2.borrow());
+                                let mut debris = Self::collide_planets(&mut pl1.borrow_mut(), &pl2.borrow(), &mut self.rand_thread);
                                 collided_planets.push(*keys[j]);
+                                new_debris.append(&mut debris);
                             } else if !colliding {
                                 tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut(), square_distance, dist_vec);
                             }
@@ -386,6 +425,11 @@ impl event::EventHandler for MainState {
         }
 
         self.planets.retain(|id, _| !collided_planets.contains(id));
+
+        // Add debris
+        for d in new_debris {
+            self.add_planet_raw(d);
+        }
 
         // Update trails
         self.update_planet_trails(&dt_duration);

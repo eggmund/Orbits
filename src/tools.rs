@@ -61,3 +61,10 @@ pub fn draw_circle(ctx: &mut Context, position: Point2<f32>, radius: f32, color:
 pub fn circular_orbit_speed(host_mass: f32, radius: f32) -> f32 {
     (G * host_mass/radius).sqrt()
 }
+
+// Two dimensional cross product
+#[inline]
+pub fn cross_2d(v1: &Vector2<f32>, v2: &Vector2<f32>) -> f32 {
+    // Determinant of 2x2 matrix
+    v1.x * v2.y - v1.y * v2.x
+}
