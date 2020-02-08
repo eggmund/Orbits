@@ -397,6 +397,15 @@ impl MainState {
             self.add_planet_raw(planet);
         }
     }
+
+    fn get_total_momentum(&self) -> Vector2<f32> {
+        let mut total = Vector2::new(0.0, 0.0);
+        for (_, pl) in self.planets.iter() {
+            let plb = pl.borrow();
+            total += plb.velocity * plb.mass
+        }
+        total
+    }
 }
 
 impl event::EventHandler for MainState {
