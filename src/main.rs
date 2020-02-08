@@ -255,10 +255,22 @@ impl MainState {
     }
 
         #[inline]
-    fn collide_planets(pl1: &mut Planet, pl2: &Planet) {  // Makes pl1 the new planet
+    fn collide_planets(pl1: &mut Planet, pl2: &Planet, rand_thread: &mut ThreadRng) -> Vec<Planets> {  // Makes pl1 the new planet, and returns vector of debris
+        fn add_debris(total_mass: &mut f32, rand_thread: &mut ThreadRng) {  // Decrements total_mass 
+            const MIN_MASS_FACTOR: f32 = 0.6;       // How much mass should remain after debris
+
+            let heading = (pl2.position - pl1.position).normalize_mut();    // Unit vector from pl1 to pl2
+            let collision_vel = pl2.velocity - pl1.velocity;
+            let cross = heading.cross(collision_vel.normalize());   // From 0 -> 1, 
+
+        }
+
         // Conservation of momentum
-        let total_mass = pl1.mass + pl2.mass;
+        let mut total_mass = pl1.mass + pl2.mass;
         let total_momentum = pl1.mass * pl1.velocity + pl2.mass * pl2.velocity;
+
+
+
         pl1.radius = tools::inverse_volume_of_sphere(total_mass/PLANET_DENSITY);
         // Use centre of mass as new position
         pl1.position = Point2::new(
