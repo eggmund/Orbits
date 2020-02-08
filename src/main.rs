@@ -16,7 +16,7 @@ use std::cell::RefCell;
 use std::time::Duration;
 use std::f32::consts::PI;
 
-use planet::{Planet, PlanetTrail};
+use planet::{Planet, PlanetTrail, PLANET_DENSITY};
 
 pub const G: f32 = 0.0001;    // Gravitational constant
 pub const TWO_PI: f32 = PI * 2.0;
@@ -32,6 +32,7 @@ struct MainState {
     mouse_info: MouseInfo,
     rand_thread: ThreadRng,
 
+    show_planet_info_debug: bool,
     show_vector_debug: bool,
 }
 
@@ -44,6 +45,7 @@ impl MainState {
             mouse_info: MouseInfo::default(),
             rand_thread: rand::thread_rng(),
 
+            show_planet_info_debug: false,
             show_vector_debug: false,
         };
 
@@ -54,13 +56,13 @@ impl MainState {
 
     fn restart(&mut self) {
         self.clear();
-        // const GAP: f32 = 20.0;
+        // const GAP: f32 = 100.0;
         // self.spawn_square_of_planets(
         //     Point2::new(GAP/2.0, GAP/2.0),
         //     (SCREEN_DIMS.0/GAP).ceil() as u16,
         //     (SCREEN_DIMS.1/GAP).ceil() as u16,
         //     GAP,
-        //     1.0,
+        //     10.0,
         // );
 
         // self.add_planet_with_moons(
@@ -239,32 +241,6 @@ impl MainState {
         )
     }
 
-    fn draw_vectors(&self, ctx: &mut Context, velocities: bool, forces: bool) -> GameResult {
-        for (_, planet) in self.planets.iter() {
-            let planet_borrow = planet.borrow();
-            if velocities && planet_borrow.velocity.magnitude_squared() > 1.0 {
-                let vel_line = graphics::Mesh::new_line(
-                    ctx,
-                    &[planet_borrow.position, planet_borrow.position + planet_borrow.velocity],
-                    1.0,
-                    [0.0, 1.0, 0.0, 1.0].into()
-                )?;
-                graphics::draw(ctx, &vel_line, DrawParam::default())?;
-            }
-
-            if forces && planet_borrow.resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
-                let force_line = graphics::Mesh::new_line(
-                    ctx,
-                    &[planet_borrow.position, planet_borrow.position + planet_borrow.resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
-                    1.0,
-                    [1.0, 0.0, 0.0, 1.0].into()
-                )?;
-                graphics::draw(ctx, &force_line, DrawParam::default())?;
-            }
-        }
-        Ok(())
-    }
-
     pub fn draw_mouse_drag(ctx: &mut Context, mouse_info: &MouseInfo) -> GameResult {
         let line = Mesh::new_line(
             ctx,
@@ -279,33 +255,19 @@ impl MainState {
     }
 
         #[inline]
-    fn collide_planets(&mut self, planets: &HashSet<usize>) -> Planet {  // Returns new planet that is sum of other two.
+    fn collide_planets(pl1: &mut Planet, pl2: &Planet) {  // Makes pl1 the new planet
         // Conservation of momentum
-        let mut total_mass = 0.0;
-        let mut total_volume = 0.0;
-        let mut total_momentum = Vector2::new(0.0, 0.0);
-        let mut sum_of_rm = Point2::new(0.0, 0.0);      // Centre of mass of system is this divided by total mass of all bodies
-
-        for id in planets.iter().filter(|id| self.planets.contains_key(id)) {
-            let p = self.planets.get(id).expect(&format!("Planet {} not in hashmap.", id)).borrow();
-            total_mass += p.mass; 
-            total_volume += tools::volume_of_sphere(p.radius);
-            total_momentum += p.mass * p.velocity;
-
-            sum_of_rm.x += p.position.x * p.mass;
-            sum_of_rm.y += p.position.y * p.mass;
-
-            // Make end of trail
-            let mut trail = self.planet_trails.get(id).expect(&format!("Could not get trail for planet {}.", id)).borrow_mut();
-            trail.add_node(p.position);
-        }
-        
-        let new_radius = tools::inverse_volume_of_sphere(total_volume);
+        let total_mass = pl1.mass + pl2.mass;
+        let total_momentum = pl1.mass * pl1.velocity + pl2.mass * pl2.velocity;
+        pl1.radius = tools::inverse_volume_of_sphere(total_mass/PLANET_DENSITY);
         // Use centre of mass as new position
-        let new_position = sum_of_rm/total_mass;
-
-        // ID is set to 0, and is then changed afterwards.
-        Planet::new(0, new_position, Some(total_momentum/total_mass), Some(total_mass), new_radius, None)
+        pl1.position = Point2::new(
+            (pl1.position.x * pl1.mass + pl2.position.x * pl2.mass)/total_mass,
+            (pl1.position.y * pl1.mass + pl2.position.y * pl2.mass)/total_mass
+        );
+        pl1.velocity = total_momentum/total_mass;   // Inelastic collision
+        pl1.mass = total_mass;
+        pl1.update_color(); // Will have changed colour due to increase in mass
     }
 
     fn spawn_square_of_planets(
@@ -350,62 +312,6 @@ impl MainState {
 
         total
     }
-
-    #[inline]
-    fn put_in_collision_group(collision_groups: &mut Vec<HashSet<usize>>, i_id: usize, j_id: usize) {
-        let mut now_in_group = false;
-        for collision_group in collision_groups.iter_mut() {
-            let contains_i = collision_group.contains(&i_id);
-            let contains_j = collision_group.contains(&j_id);
-
-            if contains_i && contains_j {
-                // Do nothing
-            } else if contains_i {
-                collision_group.insert(j_id);
-            } else if contains_j {
-                collision_group.insert(i_id);
-            }
-
-            if contains_i || contains_j {
-                now_in_group = true;
-                break
-            }
-        }
-
-        if !now_in_group {  // Start a new group
-            let mut new_set = HashSet::with_capacity(2);
-            new_set.insert(i_id);
-            new_set.insert(j_id);
-            collision_groups.push(new_set);
-        }
-    }
-
-    #[inline]
-    fn resolve_collisions(&mut self, collision_groups: &Vec<HashSet<usize>>) {
-        let mut new_planets = Vec::new();
-        for collision_group in collision_groups.iter() {
-            new_planets.push(self.collide_planets(&collision_group));
-            // Remove planets in each collision group (since they will be replaced by new planet)
-            for id in collision_group {
-                self.remove_planet(*id);
-            }
-        }
-
-        // Add new planets
-        for planet in new_planets {
-            //self.debris_emitters.push(ParticleSystem::new(planet.position, ParticleSystemParam::debris_emitter()));
-            self.add_planet_raw(planet);
-        }
-    }
-
-    fn get_total_momentum(&self) -> Vector2<f32> {
-        let mut total = Vector2::new(0.0, 0.0);
-        for (_, pl) in self.planets.iter() {
-            let plb = pl.borrow();
-            total += plb.velocity * plb.mass
-        }
-        total
-    }
 }
 
 impl event::EventHandler for MainState {
@@ -413,12 +319,8 @@ impl event::EventHandler for MainState {
         let dt_duration = timer::delta(ctx);
         let dt = timer::duration_to_f64(dt_duration) as f32;
 
-        /*
-            Groups that are colliding.
-            E.g: vec![ {1, 4, 2}, {5, 3} ]
-        */
-        let mut collision_groups: Vec<HashSet<usize>> = Vec::with_capacity(self.planets.len()/2);
-
+        let mut collided_planets: Vec<usize> = Vec::with_capacity(self.planets.len()/2);
+        
         // Remove dead particle emitters
         self.planet_trails.retain(|_, trail| !trail.borrow().is_dead());
 
@@ -432,38 +334,46 @@ impl event::EventHandler for MainState {
             }
 
             for i in 0..len-1 {
-                let pl1 = self.planets.get(keys[i]).expect("Couldn't get planet 1");
-                for j in i+1..len {
-                    let pl2 = self.planets.get(keys[j]).expect("Couldn't get planet 2");
-
-                    let (colliding, dist_vec, square_distance, protection) = {
-                        let bpl1 = pl1.borrow();
-                        let bpl2 = pl2.borrow();
-                        let dist_vec = bpl2.position - bpl1.position;
-                        let min_dist = bpl1.radius + bpl2.radius;
-                        let square_dist = dist_vec.x.powi(2) + dist_vec.y.powi(2);
-                        (
-                            // AABB then circle collision
-                            dist_vec.x.abs() <= min_dist && dist_vec.y.abs() <= min_dist && square_dist <= min_dist.powi(2),
-                            dist_vec,
-                            square_dist,
-                            bpl1.has_spawn_protection() || bpl2.has_spawn_protection()
-                        )
-                    };
+                let already_collided = collided_planets.contains(&i);
+                if !already_collided {
+                    let pl1 = self.planets.get(keys[i]).expect("Couldn't get planet 1");
+                    for j in i+1..len {
+                        let already_collided = collided_planets.contains(&j);
+                        if !already_collided {
+                            let pl2 = self.planets.get(keys[j]).expect("Couldn't get planet 2");
     
-                    // Check for collision even if they have spawn protection, since I do not want to apply grav
-                    // force when planets are inside of each other (as they become very speedy).
-                    // protection is true if either planets have spawn protection
-                    if colliding && !protection {
-                        Self::put_in_collision_group(&mut collision_groups, *keys[i], *keys[j]);
-                    } else if !colliding {
-                        tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut(), square_distance, dist_vec);
+                            let (colliding, dist_vec, square_distance, protection) = {
+                                let bpl1 = pl1.borrow();
+                                let bpl2 = pl2.borrow();
+                                let dist_vec = bpl2.position - bpl1.position;
+                                let min_dist = bpl1.radius + bpl2.radius;
+                                let square_dist = dist_vec.x.powi(2) + dist_vec.y.powi(2);
+                                (
+                                    // AABB then circle collision
+                                    dist_vec.x.abs() <= min_dist && dist_vec.y.abs() <= min_dist && square_dist <= min_dist.powi(2),
+                                    dist_vec,
+                                    square_dist,
+                                    bpl1.has_spawn_protection() || bpl2.has_spawn_protection()
+                                )
+                            };
+            
+                            // Check for collision even if they have spawn protection, since I do not want to apply grav
+                            // force when planets are inside of each other (as they become very speedy).
+                            // protection is true if either planets have spawn protection
+                            if colliding && !protection {
+                                Self::collide_planets(&mut pl1.borrow_mut(), &pl2.borrow());
+                                collided_planets.push(*keys[j]);
+                            } else if !colliding {
+                                tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut(), square_distance, dist_vec);
+                            }
+                        }
                     }
                 }
+                
             }
-
-            self.resolve_collisions(&collision_groups);
         }
+
+        self.planets.retain(|id, _| !collided_planets.contains(id));
 
         // Update trails
         self.update_planet_trails(&dt_duration);
@@ -505,15 +415,16 @@ impl event::EventHandler for MainState {
             let mut planets_mesh_builder = MeshBuilder::new();
 
             for (_, planet) in self.planets.iter() {
-                planet.borrow().draw(&mut planets_mesh_builder);
+                planet.borrow().draw(
+                    if self.show_planet_info_debug { Some(ctx) } else { None },
+                    &mut planets_mesh_builder,
+                    self.show_planet_info_debug,
+                    self.show_vector_debug,
+                )?;
             }
     
             let planets_mesh = planets_mesh_builder.build(ctx)?;
             graphics::draw(ctx, &planets_mesh, DrawParam::default())?;
-        }
-
-        if self.show_vector_debug {
-            self.draw_vectors(ctx, true, true)?;
         }
 
         self.draw_debug_info(ctx)?;
@@ -555,6 +466,7 @@ impl event::EventHandler for MainState {
     ) {
         match keycode {
             KeyCode::D => self.show_vector_debug = !self.show_vector_debug,
+            KeyCode::I => self.show_planet_info_debug = !self.show_planet_info_debug,
             KeyCode::R => self.restart(),
             KeyCode::C => self.clear(),
             _ => (),
