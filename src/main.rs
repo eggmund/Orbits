@@ -65,37 +65,37 @@ impl MainState {
         //     10.0,
         // );
 
+        self.add_planet_with_moons(
+            Point2::new(640.0, 430.0),
+            None,
+            None,
+            50.0,
+            700,
+            (15.0, 100.0),
+            (0.5, 1.5),
+            true,
+        );
+
         // self.add_planet_with_moons(
-        //     Point2::new(640.0, 430.0),
+        //     Point2::new(320.0, 430.0),
         //     None,
         //     None,
         //     50.0,
-        //     700,
+        //     500,
         //     (15.0, 100.0),
         //     (0.5, 1.5),
         //     true,
         // );
-
-        self.add_planet_with_moons(
-            Point2::new(320.0, 430.0),
-            None,
-            None,
-            50.0,
-            500,
-            (15.0, 100.0),
-            (0.5, 1.5),
-            true,
-        );
-        self.add_planet_with_moons(
-            Point2::new(960.0, 430.0),
-            None,
-            None,
-            50.0,
-            500,
-            (15.0, 100.0),
-            (0.5, 1.5),
-            true,
-        );
+        // self.add_planet_with_moons(
+        //     Point2::new(960.0, 430.0),
+        //     None,
+        //     None,
+        //     50.0,
+        //     500,
+        //     (15.0, 100.0),
+        //     (0.5, 1.5),
+        //     true,
+        // );
 
         // const DIV: f32 = 100.0;
         // self.add_random_planets(
@@ -319,7 +319,9 @@ impl event::EventHandler for MainState {
         let dt_duration = timer::delta(ctx);
         let dt = timer::duration_to_f64(dt_duration) as f32;
 
+        // For holding planets that have collided
         let mut collided_planets: Vec<usize> = Vec::with_capacity(self.planets.len()/2);
+        let mut planets_to_remove: Vec<usize> = Vec::with_capacity(self.planets.len()/2);
         
         // Remove dead particle emitters
         self.planet_trails.retain(|_, trail| !trail.borrow().is_dead());
@@ -362,7 +364,9 @@ impl event::EventHandler for MainState {
                             // protection is true if either planets have spawn protection
                             if colliding && !protection {
                                 Self::collide_planets(&mut pl1.borrow_mut(), &pl2.borrow());
+                                collided_planets.push(*keys[i]);
                                 collided_planets.push(*keys[j]);
+                                planets_to_remove.push(*keys[j])
                             } else if !colliding {
                                 tools::newtonian_grav(&mut pl1.borrow_mut(), &mut pl2.borrow_mut(), square_distance, dist_vec);
                             }
@@ -373,7 +377,7 @@ impl event::EventHandler for MainState {
             }
         }
 
-        self.planets.retain(|id, _| !collided_planets.contains(id));
+        self.planets.retain(|id, _| !planets_to_remove.contains(id));
 
         // Update trails
         self.update_planet_trails(&dt_duration);

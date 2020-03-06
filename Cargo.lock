@@ -1233,6 +1233,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "orbits"
+version = "0.1.0"
+dependencies = [
+ "ggez 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "palette 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "ordered-float"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1953,15 +1962,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "remove_dir_all 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "template"
-version = "0.1.0"
-dependencies = [
- "ggez 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "palette 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
