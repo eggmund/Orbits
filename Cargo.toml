@@ -1,7 +1,20 @@
 [package]
-name = "orbits"
+name = "stellar_orbit"
 version = "0.1.0"
-authors = ["eggmund <joshuacolclough2@googlemail.com>"]
+authors = ["josh"]
 edition = "2018"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
+piston = "0.53.0"
+pistoncore-glutin_window = "0.68.0"
+piston2d-opengl_graphics = "0.77.0"
+
+nalgebra = "0.25.3"
+num = "0.4.0"
+derive-new = "0.5.9"
+
+[dependencies.piston2d-graphics]
+version = "0.39"
+features = ["glyph_cache_rusttype"]
