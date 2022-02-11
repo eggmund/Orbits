@@ -1,3 +1,5 @@
 # Orbits
 
-Actually half-decent attempt at n-body sim.
+N-body gravity sim.
+
+Executables for Windows and Linux can be found in the tags.
