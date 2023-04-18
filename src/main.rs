@@ -67,16 +67,16 @@ impl MainState {
         //     10.0,
         // );
 
-        // self.add_planet_with_moons(
-        //     Point2::new(640.0, 430.0),
-        //     None,
-        //     None,
-        //     50.0,
-        //     500,
-        //     (15.0, 200.0),
-        //     (0.5, 1.5),
-        //     true,
-        // );
+        self.add_planet_with_moons(
+            Point2::new(640.0, 430.0),
+            None,
+            None,
+            50.0,
+            500,
+            (15.0, 200.0),
+            (0.5, 1.5),
+            true,
+        );
 
         // self.add_planet_with_moons(
         //     Point2::new(320.0, 430.0),
@@ -99,14 +99,14 @@ impl MainState {
         //     true,
         // );
 
-        const DIV: f32 = 100.0;
-        self.add_random_planets(
-            10,
-            (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
-            (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
-            (0.2, 1.0),
-            Some((500.0, 1000.0)),
-        );
+        // const DIV: f32 = 100.0;
+        // self.add_random_planets(
+        //     1000,
+        //     (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
+        //     (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
+        //     (2.0, 10.0),
+        //     Some((0.0, 1.0)),
+        // );
     }
 
     #[inline]
@@ -410,7 +410,6 @@ impl event::EventHandler for MainState {
             (self.mouse_info.down_pos.y - self.mouse_info.current_drag_position.y).powi(2) >= 4.0
         {
             Self::draw_mouse_drag(ctx, &mut canvas, &self.mouse_info)?;
-            //self.draw_fake_planet(ctx, self.mouse_info.down_pos, 5.0)?;
         }
 
         // Draw particles
@@ -419,7 +418,11 @@ impl event::EventHandler for MainState {
             let mut can_draw = false;
     
             for (_, trail) in self.planet_trails.iter() {
-                can_draw = trail.borrow().draw(&mut lines_mesh_builder)? && !can_draw;
+                // Draw builds the mesh, returns a bool.
+                // If this bool is true then there's something to draw.
+                if trail.borrow().draw(&mut lines_mesh_builder)? {
+                    can_draw = true;
+                }
             }
             
             if can_draw {     // Prevents lyon error when building mesh

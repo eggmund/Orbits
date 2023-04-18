@@ -8,5 +8,5 @@ edition = "2021"
 #ggez = "0.8.1"
 ggez = "0.9.0-rc0"
 rand = "0.8.5"
-palette = "0.7.1"
 nalgebra = { version = "0.32.2", features = ["mint"] }
+rgb_hsv = "1.0.1"

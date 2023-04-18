@@ -1,9 +1,9 @@
 use ggez::graphics::{self, MeshBuilder, Mesh, DrawMode, Color, DrawParam, Canvas};
 use ggez::{Context, GameResult};
 use ggez::timer;
-use palette::{rgb::LinSrgb, Hsv};
 
 use nalgebra::{Vector2, Point2};
+use rgb_hsv::hsv_to_rgb;
 
 use std::time::{Duration, Instant};
 use std::collections::VecDeque;
@@ -82,53 +82,55 @@ impl Planet {
         )?;
         canvas.draw(&circ, DrawParam::default());
 
-        // if text_debug {
-        //     const DEBUG_TEXT_SCALE: f32 = 0.7;
+        if text_debug {
+            const DEBUG_TEXT_SCALE: f32 = 0.7;
 
-        //     let debug_text = graphics::Text::new(
-        //         format!("ID: {}\nMass: {}\nRad: {}",
-        //             self.id,
-        //             self.mass,
-        //             self.radius
-        //         )
-        //     );
+            let debug_text = graphics::Text::new(
+                format!("ID: {}\nMass: {}\nRad: {}",
+                    self.id,
+                    self.mass,
+                    self.radius
+                )
+            );
 
-        //     canvas.draw(
-        //         &debug_text,
-        //         DrawParam::new()
-        //             .scale(Vector2::new(DEBUG_TEXT_SCALE, DEBUG_TEXT_SCALE))
-        //             .dest(Point2::new(self.position.x + self.radius, self.position.y - self.radius))
-        //     );
-        // }
+            canvas.draw(
+                &debug_text,
+                DrawParam::new()
+                    .scale(Vector2::new(DEBUG_TEXT_SCALE, DEBUG_TEXT_SCALE))
+                    .dest(Point2::new(self.position.x + self.radius, self.position.y - self.radius))
+            );
+        }
 
-        // if vector_debug {
-        //     // Draw velocity vector
-        //     if self.velocity.magnitude_squared() > 1.0 {    // Make sure larger than 1 pixel first
-        //         mesh_builder.line(
-        //             &[self.position, self.position + self.velocity],
-        //             1.0,
-        //             [0.0, 1.0, 0.0, 1.0].into()
-        //         )?;
-        //     }
+        if vector_debug {
+            // Draw velocity vector
+            if self.velocity.magnitude_squared() > 1.0 {    // Make sure larger than 1 pixel first
+                let line_mesh = Mesh::new_line(
+                    ctx,
+                    &[self.position, self.position + self.velocity],
+                    1.0,
+                    [0.0, 1.0, 0.0, 1.0].into()
+                )?;
+                canvas.draw(&line_mesh, DrawParam::default());
+            }
 
-        //     // Draw force vector
-        //     if self.resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
-        //         mesh_builder.line(
-        //             &[self.position, self.position + self.resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
-        //             1.0,
-        //             [1.0, 0.0, 0.0, 1.0].into()
-        //         )?;
-        //     }
-        // }
+            // Draw force vector
+            if self.resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
+                let line_mesh = Mesh::new_line(
+                    ctx,
+                    &[self.position, self.position + self.resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
+                    1.0,
+                    [1.0, 0.0, 0.0, 1.0].into()
+                )?;
+                canvas.draw(&line_mesh, DrawParam::default());
+            }
+        }
 
         Ok(())
     }
 
     pub fn update_color(&mut self) {
-        // TODO: Fix this
-        //let hsv = Hsv::new((self.radius/PLANET_RADIUS_COLORING_LOOP * 360.0) % 360.0, 1.0, 1.0);
-        //let rgb = LinSrgb::from(hsv);
-        self.color = Color::WHITE; // [rgb.red, rgb.green, rgb.blue, 1.0].into();
+        let (r, g, b) = hsv_to_rgb((self.radius/PLANET_RADIUS_COLORING_LOOP % 1.0, 1.0, 1.0));
+        self.color = [r, g, b, 1.0].into();
     }
 
     #[inline]
@@ -206,7 +208,7 @@ impl PlanetTrail {
                     mesh.line(
                         &[self.nodes[i].pos, self.nodes[i + 1].pos],
                         1.0,
-                        [0.1, 0.4, 0.8, alpha/4.0].into()
+                        [0.1, 0.4, 1.0, alpha].into()
                     )?;
                 }
             }
