@@ -25,7 +25,7 @@ pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 5.0;
 const FORCE_DEBUG_VECTOR_MULTIPLIER: f32 = 0.00001;
 pub const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
-const TELEPORT_ON_EDGES: bool = false;       // When edge of window is reached, teleport to other side.
+const TELEPORT_ON_EDGES: bool = true;       // When edge of window is reached, teleport to other side.
 
 struct MainState {
     planet_id_count: usize,
@@ -67,37 +67,37 @@ impl MainState {
         //     10.0,
         // );
 
+        // self.add_planet_with_moons(
+        //     [(SCREEN_DIMS.0/2) as f32, (SCREEN_DIMS.1/2) as f32].into(),
+        //     None,
+        //     None,
+        //     50.0,
+        //     500,
+        //     (15.0, 200.0),
+        //     (0.5, 1.5),
+        //     true,
+        // );
+
         self.add_planet_with_moons(
-            Point2::new(640.0, 430.0),
+            Point2::new(SCREEN_DIMS.0 * 1.0/3.0, SCREEN_DIMS.1/2.0),
             None,
             None,
             50.0,
-            500,
-            (15.0, 200.0),
+            350,
+            (15.0, 100.0),
             (0.5, 1.5),
             true,
         );
-
-        // self.add_planet_with_moons(
-        //     Point2::new(320.0, 430.0),
-        //     None,
-        //     None,
-        //     50.0,
-        //     500,
-        //     (15.0, 100.0),
-        //     (0.5, 1.5),
-        //     true,
-        // );
-        // self.add_planet_with_moons(
-        //     Point2::new(960.0, 430.0),
-        //     None,
-        //     None,
-        //     50.0,
-        //     500,
-        //     (15.0, 100.0),
-        //     (0.5, 1.5),
-        //     true,
-        // );
+        self.add_planet_with_moons(
+            Point2::new(SCREEN_DIMS.0 * 2.0/3.0, SCREEN_DIMS.1/2.0),
+            None,
+            None,
+            50.0,
+            350,
+            (15.0, 100.0),
+            (0.5, 1.5),
+            true,
+        );
 
         // const DIV: f32 = 100.0;
         // self.add_random_planets(
