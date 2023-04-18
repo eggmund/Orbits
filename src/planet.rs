@@ -1,4 +1,4 @@
-use ggez::graphics::{self, MeshBuilder, DrawMode, Color, DrawParam, Canvas};
+use ggez::graphics::{self, MeshBuilder, Mesh, DrawMode, Color, DrawParam, Canvas};
 use ggez::{Context, GameResult};
 use ggez::timer;
 use palette::{rgb::LinSrgb, Hsv};
@@ -34,11 +34,10 @@ impl Planet {
             mass: mass.unwrap_or_else(|| Self::mass_from_radius(radius, PLANET_DENSITY)),
             radius,
             resultant_force: Vector2::new(0.0, 0.0),
-            color: [1.0, 1.0, 1.0, 1.0].into(),
+            color: Color::WHITE,
             spawn_protection_timer,
         };
 
-        n.update_color();
         n
     }
 
@@ -72,56 +71,55 @@ impl Planet {
         }
     }
 
-    pub fn draw(&self, canvas: Option<&mut Canvas>, mesh_builder: &mut MeshBuilder, text_debug: bool, vector_debug: bool) -> GameResult {
-        //tools::draw_circle(ctx, self.position, self.radius, graphics::WHITE)
-        mesh_builder.circle(
+    pub fn draw(&self, ctx: &mut Context, canvas: &mut Canvas, text_debug: bool, vector_debug: bool) -> GameResult {
+        let circ = Mesh::new_circle(
+            ctx,
             DrawMode::fill(),
             self.position,
             self.radius,
             0.1,
             self.color,
-        );
+        )?;
+        canvas.draw(&circ, DrawParam::default());
 
-        if text_debug {
-            const DEBUG_TEXT_SCALE: f32 = 0.7;
+        // if text_debug {
+        //     const DEBUG_TEXT_SCALE: f32 = 0.7;
 
-            let canvas = canvas
-                .expect("Context object needed to draw debug information for planet. This was None.");
-            let debug_text = graphics::Text::new(
-                format!("ID: {}\nMass: {}\nRad: {}",
-                    self.id,
-                    self.mass,
-                    self.radius
-                )
-            );
+        //     let debug_text = graphics::Text::new(
+        //         format!("ID: {}\nMass: {}\nRad: {}",
+        //             self.id,
+        //             self.mass,
+        //             self.radius
+        //         )
+        //     );
 
-            canvas.draw(
-                &debug_text,
-                DrawParam::new()
-                    .scale(Vector2::new(DEBUG_TEXT_SCALE, DEBUG_TEXT_SCALE))
-                    .dest(Point2::new(self.position.x + self.radius, self.position.y - self.radius))
-            );
-        }
+        //     canvas.draw(
+        //         &debug_text,
+        //         DrawParam::new()
+        //             .scale(Vector2::new(DEBUG_TEXT_SCALE, DEBUG_TEXT_SCALE))
+        //             .dest(Point2::new(self.position.x + self.radius, self.position.y - self.radius))
+        //     );
+        // }
 
-        if vector_debug {
-            // Draw velocity vector
-            if self.velocity.magnitude_squared() > 1.0 {    // Make sure larger than 1 pixel first
-                mesh_builder.line(
-                    &[self.position, self.position + self.velocity],
-                    1.0,
-                    [0.0, 1.0, 0.0, 1.0].into()
-                )?;
-            }
+        // if vector_debug {
+        //     // Draw velocity vector
+        //     if self.velocity.magnitude_squared() > 1.0 {    // Make sure larger than 1 pixel first
+        //         mesh_builder.line(
+        //             &[self.position, self.position + self.velocity],
+        //             1.0,
+        //             [0.0, 1.0, 0.0, 1.0].into()
+        //         )?;
+        //     }
 
-            // Draw force vector
-            if self.resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
-                mesh_builder.line(
-                    &[self.position, self.position + self.resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
-                    1.0,
-                    [1.0, 0.0, 0.0, 1.0].into()
-                )?;
-            }
-        }
+        //     // Draw force vector
+        //     if self.resultant_force.magnitude_squared() > 1.0/FORCE_DEBUG_VECTOR_MULTIPLIER {
+        //         mesh_builder.line(
+        //             &[self.position, self.position + self.resultant_force * FORCE_DEBUG_VECTOR_MULTIPLIER],
+        //             1.0,
+        //             [1.0, 0.0, 0.0, 1.0].into()
+        //         )?;
+        //     }
+        // }
 
         Ok(())
     }
@@ -201,9 +199,9 @@ impl PlanetTrail {
                 {
                     draw_segments += 1;
                     // Change transpacency depending on how long the node has been alive.
-                    let alpha = 1.0 - (Instant::now().duration_since(self.nodes[i].time_created).as_secs_f32() /
+                    let mut alpha = 1.0 - (Instant::now().duration_since(self.nodes[i].time_created).as_secs_f32() /
                                        PLANET_TRAIL_NODE_LIFETIME);
-                    alpha.max(0.0).powi(2);
+                    alpha = alpha.max(0.0).powi(2);
     
                     mesh.line(
                         &[self.nodes[i].pos, self.nodes[i + 1].pos],

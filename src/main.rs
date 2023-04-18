@@ -2,7 +2,7 @@ mod tools;
 mod planet;
 
 use ggez::event::{self};
-use ggez::graphics::{self, DrawParam, Mesh, MeshBuilder, Color, Canvas};
+use ggez::graphics::{self, DrawParam, Mesh, MeshBuilder, Color, Canvas, DrawMode};
 use ggez::{Context, GameResult};
 use ggez::timer;
 use ggez::input::{mouse::MouseButton, keyboard::{KeyCode, KeyMods, KeyInput}};
@@ -67,16 +67,16 @@ impl MainState {
         //     10.0,
         // );
 
-        self.add_planet_with_moons(
-            Point2::new(640.0, 430.0),
-            None,
-            None,
-            50.0,
-            500,
-            (15.0, 200.0),
-            (0.5, 1.5),
-            true,
-        );
+        // self.add_planet_with_moons(
+        //     Point2::new(640.0, 430.0),
+        //     None,
+        //     None,
+        //     50.0,
+        //     500,
+        //     (15.0, 200.0),
+        //     (0.5, 1.5),
+        //     true,
+        // );
 
         // self.add_planet_with_moons(
         //     Point2::new(320.0, 430.0),
@@ -99,14 +99,14 @@ impl MainState {
         //     true,
         // );
 
-        // const DIV: f32 = 100.0;
-        // self.add_random_planets(
-        //     1000,
-        //     (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
-        //     (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
-        //     (0.2, 1.0),
-        //     Some((500.0, 1000.0)),
-        // );
+        const DIV: f32 = 100.0;
+        self.add_random_planets(
+            10,
+            (SCREEN_DIMS.0/DIV, SCREEN_DIMS.0 - SCREEN_DIMS.0/DIV),
+            (SCREEN_DIMS.1/DIV, SCREEN_DIMS.1 - SCREEN_DIMS.1/DIV),
+            (0.2, 1.0),
+            Some((500.0, 1000.0)),
+        );
     }
 
     #[inline]
@@ -239,7 +239,7 @@ impl MainState {
         let text = graphics::Text::new(
             format!(
                 "{:.3}\nBodies: {}\nPlanet Trails: {}\nTrail Node Count: {}",
-                self.dt,
+                1.0/self.dt,
                 self.planets.len(),
                 self.planet_trails.len(),
                 self.node_count(),
@@ -257,7 +257,17 @@ impl MainState {
             [0.0, 1.0, 0.0, 1.0].into(),
         )?;
         canvas.draw(&line, DrawParam::default());
-        tools::draw_circle(ctx, canvas, mouse_info.down_pos, SPAWN_PLANET_RADIUS, [1.0, 1.0, 1.0, 0.4].into());
+        
+        let circ_mesh = Mesh::new_circle(
+            ctx,
+            DrawMode::fill(),
+            mouse_info.down_pos,
+            SPAWN_PLANET_RADIUS,
+            0.1,
+            [1.0, 1.0, 1.0, 0.4].into()
+        )?;
+            
+        canvas.draw(&circ_mesh, DrawParam::default());        
         Ok(())
     }
 
@@ -420,22 +430,19 @@ impl event::EventHandler for MainState {
 
 
         // Draw planets on top of particles
-        if !self.planets.is_empty() {
-            // TODO: Use instances. Make mesh at the start.
-            let mut planets_mesh_builder = MeshBuilder::new();
 
-            for (_, planet) in self.planets.iter() {
-                planet.borrow().draw(
-                    if self.show_planet_info_debug { Some(&mut canvas) } else { None },
-                    &mut planets_mesh_builder,
-                    self.show_planet_info_debug,
-                    self.show_vector_debug,
-                )?;
-            }
-    
-            let planets_mesh = Mesh::from_data(ctx, planets_mesh_builder.build());
-            canvas.draw(&planets_mesh, DrawParam::default());
+        // TODO: Use instances. Make mesh at the start.
+        for (_, planet) in self.planets.iter() {
+            planet.borrow().draw(
+                ctx,
+                &mut canvas,
+                self.show_planet_info_debug,
+                self.show_vector_debug,
+            )?;
         }
+    
+        // let planets_mesh = Mesh::from_data(ctx, planets_mesh_builder.build());
+        // canvas.draw(&planets_mesh, DrawParam::default());
 
         self.draw_debug_info(&mut canvas);
         canvas.finish(ctx)

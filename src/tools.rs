@@ -37,22 +37,6 @@ pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet, dist_squared: f32, dis
     pl2.resultant_force -= force_vec;
 }
 
-#[inline]
-pub fn draw_circle(ctx: &mut Context, canvas: &mut Canvas, position: Point2<f32>, radius: f32, color: graphics::Color) -> GameResult {
-    let circ_mesh = Mesh::new_circle(
-        ctx,
-        DrawMode::fill(),
-        position,
-        radius,
-        0.1,
-        color
-    )?;
-
-    canvas.draw(&circ_mesh, DrawParam::new());
-    Ok(())
-}
-
-
 // Returns the magnitude of the velocity (speed) needed for a circular orbit around another planet
 // Orbit is circular when the kinetic energy does not change.
 // K = GMm/2r  -- Derived from centripetal force (in circular motion) = gravitational force
