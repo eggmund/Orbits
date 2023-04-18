@@ -1,8 +1,9 @@
-use ggez::nalgebra::{Vector2, Point2};
 use ggez::graphics::{self, MeshBuilder, DrawMode, Color, DrawParam};
 use ggez::{Context, GameResult};
 use ggez::timer;
 use palette::{rgb::LinSrgb, Hsv};
+
+use nalgebra::{Vector2, Point2};
 
 use std::time::{Duration, Instant};
 use std::collections::VecDeque;
@@ -71,7 +72,7 @@ impl Planet {
         }
     }
 
-    pub fn draw(&self, ctx: Option<&mut Context>, mesh_builder: &mut MeshBuilder, text_debug: bool, vector_debug: bool) -> GameResult {
+    pub fn draw(&self, canvas: Option<&mut Canvas>, mesh_builder: &mut MeshBuilder, text_debug: bool, vector_debug: bool) -> GameResult {
         //tools::draw_circle(ctx, self.position, self.radius, graphics::WHITE)
         mesh_builder.circle(
             DrawMode::fill(),
@@ -84,7 +85,8 @@ impl Planet {
         if text_debug {
             const DEBUG_TEXT_SCALE: f32 = 0.7;
 
-            let ctx = ctx.expect("Context object needed to draw debug information for planet. This was None.");
+            let canvas = canvas
+                .expect("Context object needed to draw debug information for planet. This was None.");
             let debug_text = graphics::Text::new(
                 format!("ID: {}\nMass: {}\nRad: {}",
                     self.id,
@@ -93,8 +95,7 @@ impl Planet {
                 )
             );
 
-            graphics::draw(
-                ctx,
+            canvas.draw(
                 &debug_text,
                 DrawParam::new()
                     .scale(Vector2::new(DEBUG_TEXT_SCALE, DEBUG_TEXT_SCALE))
@@ -198,7 +199,10 @@ impl PlanetTrail {
                     (SCREEN_DIMS.0.min(SCREEN_DIMS.1)/2.0).powi(2)  // Make sure line length is less than half the minimum screen dimensions.
                 {
                     draw_segments += 1;
-                    let alpha = (1.0 - timer::duration_to_f64(Instant::now().duration_since(self.nodes[i].time_created)) as f32/timer::duration_to_f64(Duration::from_millis(PLANET_TRAIL_NODE_LIFETIME)) as f32).max(0.0).powi(2);
+                    // Change transpacency depending on how long the node has been alive.
+                    let alpha = (1.0 - (Instant::now().duration_since(self.nodes[i].time_created) /
+                                        Duration::from_millis(PLANET_TRAIL_NODE_LIFETIME)).as_secs_f32());
+                    alpha.max(0.0).powi(2);
     
                     mesh.line(
                         &[self.nodes[i].pos, self.nodes[i + 1].pos],

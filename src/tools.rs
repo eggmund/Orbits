@@ -1,6 +1,7 @@
-use ggez::nalgebra::{Vector2, Point2};
-use ggez::graphics::{self, Mesh, DrawMode, DrawParam};
+use ggez::graphics::{self, Mesh, Canvas, DrawMode, DrawParam};
 use ggez::{Context, GameResult};
+
+use nalgebra::{Vector2, Point2};
 
 use std::f32::consts::PI;
 use crate::{G, planet::Planet};
@@ -37,7 +38,7 @@ pub fn newtonian_grav(pl1: &mut Planet, pl2: &mut Planet, dist_squared: f32, dis
 }
 
 #[inline]
-pub fn draw_circle(ctx: &mut Context, position: Point2<f32>, radius: f32, color: graphics::Color) -> GameResult {
+pub fn draw_circle(ctx: &mut Context, canvas: &mut Canvas, position: Point2<f32>, radius: f32, color: graphics::Color) -> GameResult {
     let circ_mesh = Mesh::new_circle(
         ctx,
         DrawMode::fill(),
@@ -47,7 +48,7 @@ pub fn draw_circle(ctx: &mut Context, position: Point2<f32>, radius: f32, color:
         color
     )?;
 
-    graphics::draw(ctx, &circ_mesh, DrawParam::new())
+    canvas.draw(&circ_mesh, DrawParam::new())
 }
 
 

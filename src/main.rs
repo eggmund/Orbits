@@ -3,10 +3,11 @@ mod planet;
 
 use ggez::event::{self, KeyCode, KeyMods};
 use ggez::graphics::{self, DrawParam, Mesh, MeshBuilder};
-use ggez::nalgebra::{Point2, Vector2};
 use ggez::{Context, GameResult};
 use ggez::timer;
 use ggez::input::mouse::MouseButton;
+
+use nalgebra::{Point2, Vector2};
 
 use rand::prelude::*;
 use rand::rngs::ThreadRng;
@@ -34,6 +35,7 @@ struct MainState {
 
     show_planet_info_debug: bool,
     show_vector_debug: bool,
+    dt: f32,
 }
 
 impl MainState {
@@ -47,6 +49,7 @@ impl MainState {
 
             show_planet_info_debug: false,
             show_vector_debug: false,
+            dt: 1.0/60.0,
         };
 
         s.restart();
@@ -224,34 +227,29 @@ impl MainState {
     }
 
     #[inline]
-    fn draw_debug_info(&self, ctx: &mut Context) -> GameResult {
+    fn draw_debug_info(&self, canvas: &mut Canvas) -> GameResult {
         let text = graphics::Text::new(
             format!(
                 "{:.3}\nBodies: {}\nPlanet Trails: {}\nTrail Node Count: {}",
-                timer::fps(ctx),
+                self.dt,
                 self.planets.len(),
                 self.planet_trails.len(),
                 self.node_count(),
             )
         );
-        graphics::draw(
-            ctx,
-            &text,
-            DrawParam::new().dest([10.0, 10.0])
-        )
+        
+        canvas.draw(&text, DrawParam::new().dest([10.0, 10.0]))
     }
 
-    pub fn draw_mouse_drag(ctx: &mut Context, mouse_info: &MouseInfo) -> GameResult {
+    pub fn draw_mouse_drag(ctx: &mut Context, canvas: &mut Canvas, mouse_info: &MouseInfo) -> GameResult {
         let line = Mesh::new_line(
             ctx,
             &[mouse_info.down_pos, mouse_info.current_drag_position],
             2.0,
             [0.0, 1.0, 0.0, 1.0].into(),
         )?;
-        graphics::draw(ctx, &line, DrawParam::default())?;
-        tools::draw_circle(ctx, mouse_info.down_pos, SPAWN_PLANET_RADIUS, [1.0, 1.0, 1.0, 0.4].into())?;
-
-        Ok(())
+        canvas.draw(&line, DrawParam::default())?;
+        tools::draw_circle(ctx, canvas, mouse_info.down_pos, SPAWN_PLANET_RADIUS, [1.0, 1.0, 1.0, 0.4].into())?
     }
 
         #[inline]
@@ -317,7 +315,7 @@ impl MainState {
 impl event::EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         let dt_duration = timer::delta(ctx);
-        let dt = timer::duration_to_f64(dt_duration) as f32;
+        self.dt = dt_duration.as_secs_f32();
 
         // For holding planets that have collided
         let mut collided_planets: Vec<usize> = Vec::with_capacity(self.planets.len()/2);
@@ -332,7 +330,7 @@ impl event::EventHandler for MainState {
         if len > 0 {
             // Update planets
             for (_, pl) in self.planets.iter() {
-                pl.borrow_mut().update(dt, &dt_duration);
+                pl.borrow_mut().update(self.dt, &dt_duration);
             }
 
             for i in 0..len-1 {
@@ -386,13 +384,13 @@ impl event::EventHandler for MainState {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        graphics::clear(ctx, [0.0, 0.0, 0.0, 1.0].into());
+        let mut canvas = graphics::Canvas::from_frame(ctx, Color::BLACK);
 
         if self.mouse_info.down && self.mouse_info.button_down == MouseButton::Left &&
             (self.mouse_info.down_pos.x - self.mouse_info.current_drag_position.x).powi(2) +
             (self.mouse_info.down_pos.y - self.mouse_info.current_drag_position.y).powi(2) >= 4.0
         {
-            Self::draw_mouse_drag(ctx, &self.mouse_info)?;
+            Self::draw_mouse_drag(canvas, &self.mouse_info)?;
             //self.draw_fake_planet(ctx, self.mouse_info.down_pos, 5.0)?;
         }
 
@@ -402,38 +400,36 @@ impl event::EventHandler for MainState {
             let mut can_draw = false;
     
             for (_, trail) in self.planet_trails.iter() {
-                if trail.borrow().draw(&mut lines_mesh_builder)? && !can_draw {
-                    can_draw = true;
-                }
+                can_draw = trail.borrow().draw(&mut lines_mesh_builder)? && !can_draw;
             }
             
             if can_draw {     // Prevents lyon error when building mesh
-                let line_mesh = lines_mesh_builder.build(ctx)?;
-                graphics::draw(ctx, &line_mesh, DrawParam::default())?;
+                let line_mesh = Mesh::from_data(ctx, lines_mesh_builder.build());
+                canvas.draw(&line_mesh, DrawParam::default())?;
             }
         }
 
 
         // Draw planets on top of particles
         if !self.planets.is_empty() {
+            // TODO: Use instances. Make mesh at the start.
             let mut planets_mesh_builder = MeshBuilder::new();
 
             for (_, planet) in self.planets.iter() {
                 planet.borrow().draw(
-                    if self.show_planet_info_debug { Some(ctx) } else { None },
+                    if self.show_planet_info_debug { Some(canvas) } else { None },
                     &mut planets_mesh_builder,
                     self.show_planet_info_debug,
                     self.show_vector_debug,
                 )?;
             }
     
-            let planets_mesh = planets_mesh_builder.build(ctx)?;
-            graphics::draw(ctx, &planets_mesh, DrawParam::default())?;
+            let planets_mesh = Mesh::from_data(ctx, planets_mesh_builder.build());
+            canvas.draw(&planets_mesh, DrawParam::default())?;
         }
 
-        self.draw_debug_info(ctx)?;
-        graphics::present(ctx)?;
-        Ok(())
+        self.draw_debug_info(canvas)?;
+        canvas.finish(ctx)
     }
 
     fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
