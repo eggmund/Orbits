@@ -1,16 +1,17 @@
 mod tools;
 mod planet;
 
-use ggez::event::{self, KeyCode, KeyMods};
-use ggez::graphics::{self, DrawParam, Mesh, MeshBuilder};
+use ggez::event::{self};
+use ggez::graphics::{self, DrawParam, Mesh, MeshBuilder, Color, Canvas};
 use ggez::{Context, GameResult};
 use ggez::timer;
-use ggez::input::mouse::MouseButton;
+use ggez::input::{mouse::MouseButton, keyboard::{KeyCode, KeyMods, KeyInput}};
 
 use nalgebra::{Point2, Vector2};
 
 use rand::prelude::*;
 use rand::rngs::ThreadRng;
+use rand::distributions::Uniform;
 
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -31,7 +32,6 @@ struct MainState {
     planets: HashMap<usize, RefCell<Planet>>,
     planet_trails: HashMap<usize, RefCell<PlanetTrail>>,
     mouse_info: MouseInfo,
-    rand_thread: ThreadRng,
 
     show_planet_info_debug: bool,
     show_vector_debug: bool,
@@ -45,7 +45,6 @@ impl MainState {
             planets: HashMap::new(),
             planet_trails: HashMap::new(),
             mouse_info: MouseInfo::default(),
-            rand_thread: rand::thread_rng(),
 
             show_planet_info_debug: false,
             show_vector_debug: false,
@@ -144,11 +143,18 @@ impl MainState {
             let p = self.planets.get(&(self.planet_id_count - 1)).unwrap().borrow();
             (p.mass, p.velocity)
         };
+        
+        let mut rng = rand::thread_rng();
 
+        let orbit_rad_range = Uniform::from(moon_orbit_radius_range.0..moon_orbit_radius_range.1);
+        let angle_range = Uniform::from(0.0..TWO_PI);
+        let size_rad_range = Uniform::from(moon_body_radius_range.0..moon_body_radius_range.1);
+        
         for _ in 0..moon_num {
-            let orbit_radius = main_planet_radius + self.rand_thread.gen_range(moon_orbit_radius_range.0, moon_orbit_radius_range.1);
+
+            let orbit_radius = main_planet_radius + orbit_rad_range.sample(&mut rng);
             let orbit_speed = tools::circular_orbit_speed(main_planet_mass, orbit_radius);
-            let start_angle = self.rand_thread.gen_range(0.0, TWO_PI);      // Angle from main planet to moon
+            let start_angle = angle_range.sample(&mut rng);      // Angle from main planet to moon
             let start_pos = tools::get_components(orbit_radius, start_angle);   // Position on circle orbit where planet will start
             let start_velocity = tools::get_components(
                 orbit_speed,
@@ -158,7 +164,7 @@ impl MainState {
                     start_angle - PI/2.0
                 }
             );  // 90 degrees to angle with planet
-            let moon_radius = self.rand_thread.gen_range(moon_body_radius_range.0, moon_body_radius_range.1);
+            let moon_radius = size_rad_range.sample(&mut rng);
 
             self.add_planet(
                 position + start_pos,
@@ -194,16 +200,18 @@ impl MainState {
         assert!(radius_range.1 > radius_range.0);
         assert!(n > 0);
 
+        let mut rng = rand::thread_rng();
+        
         for _ in 0..n {
-            let x_pos = self.rand_thread.gen_range(x_range.0, x_range.1);
-            let y_pos = self.rand_thread.gen_range(y_range.0, y_range.1);
-            let radius = self.rand_thread.gen_range(radius_range.0, radius_range.1);
+            let x_pos = rng.gen_range(x_range.0..x_range.1);
+            let y_pos = rng.gen_range(y_range.0..y_range.1);
+            let radius = rng.gen_range(radius_range.0..radius_range.1);
 
             let velocity = if let Some(speed_range) = speed_range {
                 assert!(speed_range.1 > speed_range.0);
 
-                let speed = self.rand_thread.gen_range(speed_range.0, speed_range.1);
-                let angle = self.rand_thread.gen_range(0.0, TWO_PI);
+                let speed = rng.gen_range(speed_range.0..speed_range.1);
+                let angle = rng.gen_range(0.0..TWO_PI);
                 Some(tools::get_components(speed, angle))
             } else {
                 None
@@ -227,7 +235,7 @@ impl MainState {
     }
 
     #[inline]
-    fn draw_debug_info(&self, canvas: &mut Canvas) -> GameResult {
+    fn draw_debug_info(&self, canvas: &mut Canvas) {
         let text = graphics::Text::new(
             format!(
                 "{:.3}\nBodies: {}\nPlanet Trails: {}\nTrail Node Count: {}",
@@ -238,7 +246,7 @@ impl MainState {
             )
         );
         
-        canvas.draw(&text, DrawParam::new().dest([10.0, 10.0]))
+        canvas.draw(&text, DrawParam::new().dest([10.0, 10.0]));
     }
 
     pub fn draw_mouse_drag(ctx: &mut Context, canvas: &mut Canvas, mouse_info: &MouseInfo) -> GameResult {
@@ -248,8 +256,9 @@ impl MainState {
             2.0,
             [0.0, 1.0, 0.0, 1.0].into(),
         )?;
-        canvas.draw(&line, DrawParam::default())?;
-        tools::draw_circle(ctx, canvas, mouse_info.down_pos, SPAWN_PLANET_RADIUS, [1.0, 1.0, 1.0, 0.4].into())?
+        canvas.draw(&line, DrawParam::default());
+        tools::draw_circle(ctx, canvas, mouse_info.down_pos, SPAWN_PLANET_RADIUS, [1.0, 1.0, 1.0, 0.4].into());
+        Ok(())
     }
 
         #[inline]
@@ -314,7 +323,7 @@ impl MainState {
 
 impl event::EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        let dt_duration = timer::delta(ctx);
+        let dt_duration = ctx.time.delta();
         self.dt = dt_duration.as_secs_f32();
 
         // For holding planets that have collided
@@ -390,7 +399,7 @@ impl event::EventHandler for MainState {
             (self.mouse_info.down_pos.x - self.mouse_info.current_drag_position.x).powi(2) +
             (self.mouse_info.down_pos.y - self.mouse_info.current_drag_position.y).powi(2) >= 4.0
         {
-            Self::draw_mouse_drag(canvas, &self.mouse_info)?;
+            Self::draw_mouse_drag(ctx, &mut canvas, &self.mouse_info)?;
             //self.draw_fake_planet(ctx, self.mouse_info.down_pos, 5.0)?;
         }
 
@@ -405,7 +414,7 @@ impl event::EventHandler for MainState {
             
             if can_draw {     // Prevents lyon error when building mesh
                 let line_mesh = Mesh::from_data(ctx, lines_mesh_builder.build());
-                canvas.draw(&line_mesh, DrawParam::default())?;
+                canvas.draw(&line_mesh, DrawParam::default());
             }
         }
 
@@ -417,7 +426,7 @@ impl event::EventHandler for MainState {
 
             for (_, planet) in self.planets.iter() {
                 planet.borrow().draw(
-                    if self.show_planet_info_debug { Some(canvas) } else { None },
+                    if self.show_planet_info_debug { Some(&mut canvas) } else { None },
                     &mut planets_mesh_builder,
                     self.show_planet_info_debug,
                     self.show_vector_debug,
@@ -425,20 +434,21 @@ impl event::EventHandler for MainState {
             }
     
             let planets_mesh = Mesh::from_data(ctx, planets_mesh_builder.build());
-            canvas.draw(&planets_mesh, DrawParam::default())?;
+            canvas.draw(&planets_mesh, DrawParam::default());
         }
 
-        self.draw_debug_info(canvas)?;
+        self.draw_debug_info(&mut canvas);
         canvas.finish(ctx)
     }
 
-    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) -> GameResult {
         self.mouse_info.down = true;
         self.mouse_info.button_down = button;
         self.mouse_info.down_pos = Point2::new(x, y);
+        Ok(())
     }
 
-    fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+    fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) -> GameResult {
         self.mouse_info.down = false;
 
         if button == MouseButton::Left {
@@ -450,27 +460,30 @@ impl event::EventHandler for MainState {
                 None,
             );
         }
+        Ok(())
     }
 
-    fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, _dx: f32, _dy: f32) {
+    fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, _dx: f32, _dy: f32) -> GameResult {
         self.mouse_info.current_drag_position = Point2::new(x, y);
+        Ok(())
     }
-
 
     fn key_down_event(
         &mut self,
         _ctx: &mut Context,
-        keycode: KeyCode,
-        _keymod: KeyMods,
+        input: KeyInput,
         _repeat: bool,
-    ) {
-        match keycode {
-            KeyCode::D => self.show_vector_debug = !self.show_vector_debug,
-            KeyCode::I => self.show_planet_info_debug = !self.show_planet_info_debug,
-            KeyCode::R => self.restart(),
-            KeyCode::C => self.clear(),
-            _ => (),
+    ) -> GameResult {
+        if let Some(keycode) = input.keycode {
+            match keycode {
+                KeyCode::D => self.show_vector_debug = !self.show_vector_debug,
+                KeyCode::I => self.show_planet_info_debug = !self.show_planet_info_debug,
+                KeyCode::R => self.restart(),
+                KeyCode::C => self.clear(),
+                _ => (),
+            }
         }
+        Ok(())
     }
 }
 
@@ -517,7 +530,7 @@ pub fn main() -> GameResult {
                 .samples(NumSamples::Four)
         );
 
-    let (ctx, event_loop) = &mut cb.build()?;
-    let state = &mut MainState::new(ctx)?;
+    let (mut ctx, event_loop) = cb.build()?;
+    let state = MainState::new(&mut ctx)?;
     event::run(ctx, event_loop, state)
 }

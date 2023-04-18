@@ -1,4 +1,4 @@
-use ggez::graphics::{self, MeshBuilder, DrawMode, Color, DrawParam};
+use ggez::graphics::{self, MeshBuilder, DrawMode, Color, DrawParam, Canvas};
 use ggez::{Context, GameResult};
 use ggez::timer;
 use palette::{rgb::LinSrgb, Hsv};
@@ -100,7 +100,7 @@ impl Planet {
                 DrawParam::new()
                     .scale(Vector2::new(DEBUG_TEXT_SCALE, DEBUG_TEXT_SCALE))
                     .dest(Point2::new(self.position.x + self.radius, self.position.y - self.radius))
-            )?;
+            );
         }
 
         if vector_debug {
@@ -127,9 +127,10 @@ impl Planet {
     }
 
     pub fn update_color(&mut self) {
-        let hsv = Hsv::new((self.radius/PLANET_RADIUS_COLORING_LOOP * 360.0) % 360.0, 1.0, 1.0);
-        let rgb = LinSrgb::from(hsv);
-        self.color = [rgb.red, rgb.green, rgb.blue, 1.0].into();
+        // TODO: Fix this
+        //let hsv = Hsv::new((self.radius/PLANET_RADIUS_COLORING_LOOP * 360.0) % 360.0, 1.0, 1.0);
+        //let rgb = LinSrgb::from(hsv);
+        self.color = Color::WHITE; // [rgb.red, rgb.green, rgb.blue, 1.0].into();
     }
 
     #[inline]
@@ -151,7 +152,7 @@ impl Planet {
 }
 
 const PLANET_TRAIL_NODE_PLACEMENT_PERIOD: u64 = 20;
-const PLANET_TRAIL_NODE_LIFETIME: u64 = 700;
+const PLANET_TRAIL_NODE_LIFETIME: f32 = 0.7;
 
 pub struct PlanetTrail {
     nodes: VecDeque<PlanetTrailNode>,
@@ -200,8 +201,8 @@ impl PlanetTrail {
                 {
                     draw_segments += 1;
                     // Change transpacency depending on how long the node has been alive.
-                    let alpha = (1.0 - (Instant::now().duration_since(self.nodes[i].time_created) /
-                                        Duration::from_millis(PLANET_TRAIL_NODE_LIFETIME)).as_secs_f32());
+                    let alpha = 1.0 - (Instant::now().duration_since(self.nodes[i].time_created).as_secs_f32() /
+                                       PLANET_TRAIL_NODE_LIFETIME);
                     alpha.max(0.0).powi(2);
     
                     mesh.line(
@@ -219,7 +220,7 @@ impl PlanetTrail {
     #[inline]
     fn kill_dead_nodes(&mut self) {
         while let Some(node) = self.nodes.front() {
-            if Instant::now().duration_since(node.time_created) >= Duration::from_millis(PLANET_TRAIL_NODE_LIFETIME) {
+            if Instant::now().duration_since(node.time_created).as_secs_f32() >= PLANET_TRAIL_NODE_LIFETIME {
                 self.nodes.pop_front();
             } else {
                 break

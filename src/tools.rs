@@ -48,7 +48,8 @@ pub fn draw_circle(ctx: &mut Context, canvas: &mut Canvas, position: Point2<f32>
         color
     )?;
 
-    canvas.draw(&circ_mesh, DrawParam::new())
+    canvas.draw(&circ_mesh, DrawParam::new());
+    Ok(())
 }
 
 

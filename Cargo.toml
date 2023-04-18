@@ -8,4 +8,4 @@ edition = "2021"
 ggez = "0.8.1"
 rand = "0.8.5"
 palette = "0.7.1"
-nalgebra = "0.32.2"
+nalgebra = { version = "0.32.2", features = ["mint"] }
