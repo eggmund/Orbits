@@ -70,16 +70,13 @@ impl Planet {
     }
   }
 
-  pub fn draw(&self, ctx: &mut Context, canvas: &mut Canvas, text_debug: bool, vector_debug: bool) -> GameResult {
-    let circ = Mesh::new_circle(
-      ctx,
-      DrawMode::fill(),
-      self.position,
-      self.radius,
-      0.1,
-      self.color,
-    )?;
-    canvas.draw(&circ, DrawParam::default());
+  pub fn draw(&self, ctx: &mut Context, canvas: &mut Canvas,
+  						body_mesh: &Mesh, text_debug: bool,
+  						vector_debug: bool) -> GameResult {
+    canvas.draw(body_mesh, DrawParam::new()
+    												 .scale(Vector2::new(self.radius, self.radius))
+    												 .dest(self.position)
+    												 .color(self.color));
 
     if text_debug {
       const DEBUG_TEXT_SCALE: f32 = 0.7;

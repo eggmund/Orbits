@@ -36,10 +36,22 @@ struct MainState {
   show_planet_info_debug: bool,
   show_vector_debug: bool,
   dt: f32,
+
+  // Mesh objects
+  body_mesh: Mesh,
 }
 
 impl MainState {
-  fn new(_ctx: &mut Context) -> GameResult<MainState> {
+  fn new(ctx: &mut Context) -> GameResult<MainState> {
+    let body_mesh = Mesh::new_circle(
+      ctx,
+      DrawMode::fill(),
+      Point2::new(0.0, 0.0),
+      1.0,
+      0.001,
+      Color::WHITE,
+    )?;
+
     let mut s = MainState {
       planet_id_count: 0,
       planets: HashMap::new(),
@@ -49,6 +61,8 @@ impl MainState {
       show_planet_info_debug: false,
       show_vector_debug: false,
       dt: 1.0/60.0,
+
+      body_mesh,
     };
 
     s.restart();
@@ -423,14 +437,11 @@ impl event::EventHandler for MainState {
       }
     }
 
-
-    // Draw planets on top of particles
-
-    // TODO: Use instances. Make mesh at the start.
     for (_, planet) in self.planets.iter() {
       planet.borrow().draw(
         ctx,
         &mut canvas,
+        &self.body_mesh,
         self.show_planet_info_debug,
         self.show_vector_debug,
       )?;
