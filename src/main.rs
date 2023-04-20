@@ -25,7 +25,7 @@ pub const TWO_PI: f32 = PI * 2.0;
 const SPAWN_PLANET_RADIUS: f32 = 5.0;
 const ACC_DEBUG_VECTOR_MULTIPLIER: f32 = 5.0;
 pub const SCREEN_DIMS: (f32, f32) = (1280.0, 860.0);
-const TELEPORT_ON_EDGES: bool = true;       // When edge of window is reached, teleport to other side.
+const TELEPORT_ON_EDGES: bool = false;       // When edge of window is reached, teleport to other side.
 
 struct MainState {
   planet_id_count: usize,
@@ -446,9 +446,6 @@ impl event::EventHandler for MainState {
         self.show_vector_debug,
       )?;
     }
-  
-    // let planets_mesh = Mesh::from_data(ctx, planets_mesh_builder.build());
-    // canvas.draw(&planets_mesh, DrawParam::default());
 
     self.draw_debug_info(&mut canvas);
     canvas.finish(ctx)
