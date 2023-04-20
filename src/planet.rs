@@ -41,7 +41,6 @@ impl Planet {
     n
   }
 
-  #[inline]
   pub fn update(&mut self, dt: f32, dt_duration: &Duration) {
     let acceleration = self.resultant_force/self.mass;  // F = ma, F/m = a
     self.velocity += acceleration * dt;
@@ -134,19 +133,16 @@ impl Planet {
     self.color = [r, g, b, 1.0].into();
   }
 
-  #[inline]
   fn mass_from_radius(radius: f32, density: f32) -> f32 {
     // m = vd
     tools::volume_of_sphere(radius) * density
   }
 
-  #[inline]
   fn radius_from_mass(mass: f32, density: f32) -> f32 {
     // v = m/d, r = cube_root( 3v/4pi )
     tools::inverse_volume_of_sphere(mass/density)
   }
 
-  #[inline]
   pub fn has_spawn_protection(&self) -> bool {
     self.spawn_protection_timer.is_some()
   }
@@ -218,7 +214,6 @@ impl PlanetTrail {
     Ok(draw_segments > 0)
   }
 
-  #[inline]
   fn kill_dead_nodes(&mut self) {
     while let Some(node) = self.nodes.front() {
       if Instant::now().duration_since(node.time_created).as_secs_f32() >= PLANET_TRAIL_NODE_LIFETIME {
@@ -229,17 +224,14 @@ impl PlanetTrail {
     }
   }
 
-  #[inline]
   pub fn node_count(&self) -> usize {
     self.nodes.len()
   }
 
-  #[inline]
   pub fn is_dead(&self) -> bool {
     self.nodes.is_empty() && !self.has_parent
   }
 
-  #[inline]
   pub fn add_node(&mut self, pos: Point2<f32>) {
     // Make sure distance from last node is a sufficient distance so that line can be drawn without errors
     let can_place = {

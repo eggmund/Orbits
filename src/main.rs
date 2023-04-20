@@ -109,12 +109,10 @@ impl MainState {
     // );
   }
 
-  #[inline]
   fn clear(&mut self) {
     self.planets = HashMap::new();
   }
 
-  #[inline]
   fn add_planet(&mut self, position: Point2<f32>, velocity: Option<Vector2<f32>>, mass: Option<f32>, radius: f32, spawn_protection: Option<Duration>) {
     self.add_planet_raw(Planet::new(
       self.planet_id_count,
@@ -151,7 +149,6 @@ impl MainState {
     let size_rad_range = Uniform::from(moon_body_radius_range.0..moon_body_radius_range.1);
     
     for _ in 0..moon_num {
-
       let orbit_radius = main_planet_radius + orbit_rad_range.sample(&mut rng);
       let orbit_speed = tools::circular_orbit_speed(main_planet_mass, orbit_radius);
       let start_angle = angle_range.sample(&mut rng);      // Angle from main planet to moon
@@ -176,7 +173,6 @@ impl MainState {
     }
   }
 
-  #[inline]
   fn add_planet_raw(&mut self, mut planet: Planet) {
     planet.id = self.planet_id_count;
 
@@ -193,7 +189,6 @@ impl MainState {
     self.planet_id_count += 1;
   }
 
-  #[inline]
   fn add_random_planets(&mut self, n: usize, x_range: (f32, f32), y_range: (f32, f32), radius_range: (f32, f32), speed_range: Option<(f32, f32)>) {
     assert!(x_range.1 > x_range.0);
     assert!(y_range.1 > y_range.0);
@@ -227,14 +222,12 @@ impl MainState {
     }
   }
 
-  #[inline]
   fn remove_planet(&mut self, id: usize) {
     if self.planets.remove(&id).is_none() {
       println!("WARNING: Tried to remove planet {} but it wasn't in the hashmap.", id);
     }
   }
 
-  #[inline]
   fn draw_debug_info(&self, canvas: &mut Canvas) {
     let text = graphics::Text::new(
       format!(
@@ -271,7 +264,6 @@ impl MainState {
     Ok(())
   }
 
-    #[inline]
   fn collide_planets(pl1: &mut Planet, pl2: &Planet) {  // Makes pl1 the new planet
     // Conservation of momentum
     let total_mass = pl1.mass + pl2.mass;
